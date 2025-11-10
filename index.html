@@ -291,6 +291,13 @@
                 <label for="clientId">Google OAuth Client ID:</label>
                 <input type="text" id="clientId" placeholder="Enter your Client ID (e.g., 123456789-abcdef.apps.googleusercontent.com)">
             </div>
+            
+            <div class="input-group">
+                <label for="suppliersInput">Manage Suppliers (comma-separated):</label>
+                <input type="text" id="suppliersInput" placeholder="e.g., osbud pharmacy, xyz supplies, abc stores" value="osbud pharmacy, osbud pharmacy and stores">
+                <button class="btn btn-secondary" onclick="updateSuppliers()" style="margin-top: 10px;">Update Suppliers</button>
+            </div>
+            
             <div class="auth-section">
                 <button class="btn" id="authorizeBtn" onclick="handleAuthClick()">Connect Gmail Account</button>
                 <button class="btn" id="signoutBtn" onclick="handleSignoutClick()" style="display:none; background:#e74c3c;">Sign Out</button>
@@ -321,20 +328,21 @@
             <div class="card">
                 <div class="summary-grid">
                     <div class="summary-card">
-                        <h3>Total Spent</h3>
+                        <h3>Total Expenses</h3>
                         <div class="amount" id="totalSpent">₦0.00</div>
+                        <small style="opacity: 0.8; font-size: 12px;">Excludes internal transfers</small>
                     </div>
                     <div class="summary-card">
-                        <h3>Transactions</h3>
+                        <h3>Expense Transactions</h3>
                         <div class="amount" id="totalTransactions">0</div>
                     </div>
                     <div class="summary-card">
-                        <h3>Average Transaction</h3>
-                        <div class="amount" id="avgTransaction">₦0.00</div>
+                        <h3>Internal Transfers</h3>
+                        <div class="amount" id="internalTransfers">₦0.00</div>
                     </div>
                     <div class="summary-card">
-                        <h3>Highest Transaction</h3>
-                        <div class="amount" id="highestTransaction">₦0.00</div>
+                        <h3>Average Expense</h3>
+                        <div class="amount" id="avgTransaction">₦0.00</div>
                     </div>
                 </div>
 
@@ -342,6 +350,7 @@
                     <button class="tab active" onclick="switchTab('overview')">Overview</button>
                     <button class="tab" onclick="switchTab('trends')">Spending Trends</button>
                     <button class="tab" onclick="switchTab('categories')">Categories</button>
+                    <button class="tab" onclick="switchTab('internal')">Internal Transfers</button>
                 </div>
 
                 <div id="overview" class="tab-content active">
@@ -366,8 +375,16 @@
                     </div>
                 </div>
 
+                <div id="internal" class="tab-content">
+                    <div class="category-section">
+                        <h2 style="margin-bottom:20px;">Internal Transfers</h2>
+                        <p style="color: #666; margin-bottom: 20px;">These transactions are money moving within your own accounts and are not counted as expenses.</p>
+                        <div id="internalTransactionsContainer"></div>
+                    </div>
+                </div>
+
                 <div class="transactions-section">
-                    <h2 style="margin-bottom:20px;">Recent Transactions</h2>
+                    <h2 style="margin-bottom:20px;">Recent Expense Transactions</h2>
                     <div id="transactionsContainer"></div>
                 </div>
             </div>
@@ -391,18 +408,38 @@
         const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest';
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 
+        // Internal accounts/companies (NOT expenses)
+        const INTERNAL_ACCOUNTS = [
+            'enavec pharmacy',
+            'enavec pharmaceuticals',
+            'iloanugo chijioke francis',
+            'chijioke francis iloanugo',
+            'moniepoint' // Add your other internal account names here
+        ];
+
+        // Supplier keywords (these ARE expenses)
+        let SUPPLIERS = [
+            'osbud pharmacy',
+            'osbud pharmacy and stores'
+            // You can add more suppliers through the UI
+        ];
+
         const CATEGORIES = {
+            'Suppliers': [], // Will be populated from SUPPLIERS array
             'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chicken republic'],
             'Transportation': ['uber', 'bolt', 'taxi', 'transport', 'fuel', 'petrol', 'gas station', 'parking'],
             'Groceries': ['shoprite', 'spar', 'market', 'grocery', 'supermarket', 'store'],
             'Utilities': ['electricity', 'water', 'phcn', 'nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
-            'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
-            'Transfer': ['transfer', 'sent to', 'payment to']
+            'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical']
         };
 
+        // Update Suppliers category with current suppliers
+        CATEGORIES['Suppliers'] = SUPPLIERS;
+
         const CATEGORY_COLORS = {
+            'Suppliers': '#e74c3c',
             'Food & Dining': '#FF6384',
             'Transportation': '#36A2EB',
             'Groceries': '#FFCE56',
@@ -410,9 +447,32 @@
             'Entertainment': '#9966FF',
             'Shopping': '#FF9F40',
             'Healthcare': '#FF6384',
-            'Transfer': '#C9CBCF',
-            'Other': '#95a5a6'
+            'Internal Transfer': '#95a5a6',
+            'Other': '#7f8c8d'
         };
+
+        function updateSuppliers() {
+            const input = document.getElementById('suppliersInput').value;
+            SUPPLIERS = input.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+            CATEGORIES['Suppliers'] = SUPPLIERS;
+            
+            // Re-categorize existing transactions
+            if (allTransactions.length > 0) {
+                allTransactions = allTransactions.map(t => ({
+                    ...t,
+                    category: categorizeTransaction(t.fullText),
+                    isInternal: isInternalTransfer(t.fullText)
+                }));
+                applyDateFilter();
+            }
+            
+            alert('Suppliers updated! Transactions will be re-categorized.');
+        }
+
+        function isInternalTransfer(text) {
+            text = text.toLowerCase();
+            return INTERNAL_ACCOUNTS.some(account => text.includes(account.toLowerCase()));
+        }
 
         function initializeGoogleAPI() {
             const clientId = document.getElementById('clientId').value.trim();
@@ -561,6 +621,13 @@
 
         function categorizeTransaction(text) {
             text = text.toLowerCase();
+            
+            // Check if it's an internal transfer first
+            if (isInternalTransfer(text)) {
+                return 'Internal Transfer';
+            }
+            
+            // Then check other categories
             for (const [category, keywords] of Object.entries(CATEGORIES)) {
                 if (keywords.some(keyword => text.includes(keyword.toLowerCase()))) {
                     return category;
@@ -643,12 +710,18 @@
                 return;
             }
 
-            const total = transactions.reduce((sum, t) => sum + t.amount, 0);
-            const avg = total / transactions.length;
-            const highest = Math.max(...transactions.map(t => t.amount));
+            // Separate internal transfers from actual expenses
+            const expenses = transactions.filter(t => !t.isInternal);
+            const internalTransfers = transactions.filter(t => t.isInternal);
 
+            // Calculate totals for expenses only
+            const total = expenses.reduce((sum, t) => sum + t.amount, 0);
+            const internalTotal = internalTransfers.reduce((sum, t) => sum + t.amount, 0);
+            const avg = expenses.length > 0 ? total / expenses.length : 0;
+
+            // Group expenses by category (excluding internal transfers)
             const byCategory = {};
-            transactions.forEach(t => {
+            expenses.forEach(t => {
                 if (!byCategory[t.category]) {
                     byCategory[t.category] = 0;
                 }
@@ -656,9 +729,9 @@
             });
 
             document.getElementById('totalSpent').textContent = `₦${total.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('totalTransactions').textContent = transactions.length;
+            document.getElementById('totalTransactions').textContent = expenses.length;
+            document.getElementById('internalTransfers').textContent = `₦${internalTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('avgTransaction').textContent = `₦${avg.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('highestTransaction').textContent = `₦${highest.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
@@ -670,7 +743,8 @@
                 `).join('');
             document.getElementById('categoriesContainer').innerHTML = categoriesHtml;
 
-            const transactionsHtml = transactions
+            // Display expense transactions
+            const transactionsHtml = expenses
                 .slice(0, 50)
                 .map(t => `
                     <div class="transaction-item">
@@ -683,7 +757,21 @@
                 `).join('');
             document.getElementById('transactionsContainer').innerHTML = transactionsHtml;
 
-            createCharts(transactions, byCategory);
+            // Display internal transfers
+            const internalHtml = internalTransfers
+                .slice(0, 50)
+                .map(t => `
+                    <div class="transaction-item">
+                        <div class="transaction-details">
+                            <div class="transaction-date">${t.date.toLocaleDateString()}</div>
+                            <div class="transaction-desc">${t.description}</div>
+                        </div>
+                        <div class="transaction-amount" style="color: #95a5a6;">₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</div>
+                    </div>
+                `).join('');
+            document.getElementById('internalTransactionsContainer').innerHTML = internalHtml || '<p style="color: #666;">No internal transfers found.</p>';
+
+            createCharts(expenses, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
         }
 
