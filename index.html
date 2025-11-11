@@ -328,21 +328,24 @@
             <div class="card">
                 <div class="summary-grid">
                     <div class="summary-card">
-                        <h3>Total Expenses</h3>
-                        <div class="amount" id="totalSpent">₦0.00</div>
-                        <small style="opacity: 0.8; font-size: 12px;">Excludes internal transfers</small>
+                        <h3>Main Expenses</h3>
+                        <div class="amount" id="mainExpenses">₦0.00</div>
+                        <small style="opacity: 0.8; font-size: 12px;">Excludes suppliers & internal</small>
                     </div>
                     <div class="summary-card">
-                        <h3>Expense Transactions</h3>
-                        <div class="amount" id="totalTransactions">0</div>
+                        <h3>Supplier Payments</h3>
+                        <div class="amount" id="supplierTotal">₦0.00</div>
+                        <small style="opacity: 0.8; font-size: 12px;">Payments to suppliers</small>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Total Expenses</h3>
+                        <div class="amount" id="totalSpent">₦0.00</div>
+                        <small style="opacity: 0.8; font-size: 12px;">Main + Suppliers</small>
                     </div>
                     <div class="summary-card">
                         <h3>Internal Transfers</h3>
                         <div class="amount" id="internalTransfers">₦0.00</div>
-                    </div>
-                    <div class="summary-card">
-                        <h3>Average Expense</h3>
-                        <div class="amount" id="avgTransaction">₦0.00</div>
+                        <small style="opacity: 0.8; font-size: 12px;">Within your accounts</small>
                     </div>
                 </div>
 
@@ -417,11 +420,30 @@
             'moniepoint' // Add your other internal account names here
         ];
 
-        // Supplier keywords (these ARE expenses)
+        // Supplier keywords (these ARE expenses but tracked separately)
+        // Add your suppliers here - they will be saved permanently
         let SUPPLIERS = [
             'osbud pharmacy',
-            'osbud pharmacy and stores'
-            // You can add more suppliers through the UI
+            'osbud pharmacy and stores',
+            'emzor pharmaceutical',
+            'juhel pharma',
+            'mega lifesciences',
+            'fidson healthcare',
+            'swipha',
+            'drugfield pharmaceuticals',
+            'medplus',
+            'healthcare',
+            'medical supplies',
+            'neimeth international',
+            'chi pharmaceuticals',
+            'may & baker',
+            'pharma deko',
+            'swiss pharma',
+            'gsk',
+            'evans medical',
+            'zolon healthcare',
+            'dana drugs'
+            // Add more suppliers in the format: 'supplier name',
         ];
 
         const CATEGORIES = {
@@ -435,8 +457,28 @@
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical']
         };
 
-        // Update Suppliers category with current suppliers
-        CATEGORIES['Suppliers'] = SUPPLIERS;
+        // Load saved suppliers from browser storage
+        function loadSuppliers() {
+            const saved = localStorage.getItem('suppliers');
+            if (saved) {
+                SUPPLIERS = JSON.parse(saved);
+            }
+            CATEGORIES['Suppliers'] = SUPPLIERS;
+            updateSuppliersInput();
+        }
+
+        // Save suppliers to browser storage
+        function saveSuppliers() {
+            localStorage.setItem('suppliers', JSON.stringify(SUPPLIERS));
+        }
+
+        // Update the input field with current suppliers
+        function updateSuppliersInput() {
+            document.getElementById('suppliersInput').value = SUPPLIERS.join(', ');
+        }
+
+        // Initialize suppliers on page load
+        loadSuppliers();
 
         const CATEGORY_COLORS = {
             'Suppliers': '#e74c3c',
@@ -456,6 +498,9 @@
             SUPPLIERS = input.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
             CATEGORIES['Suppliers'] = SUPPLIERS;
             
+            // Save to browser storage
+            saveSuppliers();
+            
             // Re-categorize existing transactions
             if (allTransactions.length > 0) {
                 allTransactions = allTransactions.map(t => ({
@@ -466,7 +511,7 @@
                 applyDateFilter();
             }
             
-            alert('Suppliers updated! Transactions will be re-categorized.');
+            alert('Suppliers saved permanently! Transactions have been re-categorized.');
         }
 
         function isInternalTransfer(text) {
@@ -710,28 +755,32 @@
                 return;
             }
 
-            // Separate internal transfers from actual expenses
-            const expenses = transactions.filter(t => !t.isInternal);
+            // Separate transactions by type
             const internalTransfers = transactions.filter(t => t.isInternal);
+            const supplierTransactions = transactions.filter(t => !t.isInternal && t.category === 'Suppliers');
+            const mainExpenses = transactions.filter(t => !t.isInternal && t.category !== 'Suppliers');
+            const allExpenses = transactions.filter(t => !t.isInternal); // suppliers + main
 
-            // Calculate totals for expenses only
-            const total = expenses.reduce((sum, t) => sum + t.amount, 0);
+            // Calculate totals
             const internalTotal = internalTransfers.reduce((sum, t) => sum + t.amount, 0);
-            const avg = expenses.length > 0 ? total / expenses.length : 0;
+            const supplierTotal = supplierTransactions.reduce((sum, t) => sum + t.amount, 0);
+            const mainTotal = mainExpenses.reduce((sum, t) => sum + t.amount, 0);
+            const expenseTotal = allExpenses.reduce((sum, t) => sum + t.amount, 0);
+
+            // Update summary cards
+            document.getElementById('mainExpenses').textContent = `₦${mainTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('supplierTotal').textContent = `₦${supplierTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('totalSpent').textContent = `₦${expenseTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('internalTransfers').textContent = `₦${internalTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
             // Group expenses by category (excluding internal transfers)
             const byCategory = {};
-            expenses.forEach(t => {
+            allExpenses.forEach(t => {
                 if (!byCategory[t.category]) {
                     byCategory[t.category] = 0;
                 }
                 byCategory[t.category] += t.amount;
             });
-
-            document.getElementById('totalSpent').textContent = `₦${total.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('totalTransactions').textContent = expenses.length;
-            document.getElementById('internalTransfers').textContent = `₦${internalTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('avgTransaction').textContent = `₦${avg.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
@@ -743,8 +792,8 @@
                 `).join('');
             document.getElementById('categoriesContainer').innerHTML = categoriesHtml;
 
-            // Display expense transactions
-            const transactionsHtml = expenses
+            // Display expense transactions (main + suppliers, no internal)
+            const transactionsHtml = allExpenses
                 .slice(0, 50)
                 .map(t => `
                     <div class="transaction-item">
@@ -755,7 +804,7 @@
                         <div class="transaction-amount">₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</div>
                     </div>
                 `).join('');
-            document.getElementById('transactionsContainer').innerHTML = transactionsHtml;
+            document.getElementById('transactionsContainer').innerHTML = transactionsHtml || '<p style="color: #666;">No expense transactions found.</p>';
 
             // Display internal transfers
             const internalHtml = internalTransfers
@@ -771,7 +820,7 @@
                 `).join('');
             document.getElementById('internalTransactionsContainer').innerHTML = internalHtml || '<p style="color: #666;">No internal transfers found.</p>';
 
-            createCharts(expenses, byCategory);
+            createCharts(allExpenses, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
         }
 
