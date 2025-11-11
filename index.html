@@ -269,21 +269,12 @@
         .tab-content.active {
             display: block;
         }
-        .debug-info {
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
-            font-size: 12px;
-            color: #666;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>💳 Debit Alert Tracker</h1>
+            <h1>💳 Debit Alert Tracker1</h1>
             <p>Automatically analyze your spending from Gmail debit alerts</p>
         </div>
 
@@ -313,17 +304,10 @@
                 <button class="btn btn-secondary" onclick="updateSuppliers()" style="margin-top: 10px;">Update Suppliers</button>
             </div>
             
-            <div class="input-group">
-                <label for="internalAccountsInput">Internal Accounts (comma-separated):</label>
-                <input type="text" id="internalAccountsInput" placeholder="e.g., enavec pharmacy, your other account" value="enavec pharmacy, enavec pharmaceuticals, iloanugo chijioke francis, chijioke francis iloanugo, moniepoint">
-                <button class="btn btn-secondary" onclick="updateInternalAccounts()" style="margin-top: 10px;">Update Internal Accounts</button>
-            </div>
-            
             <div class="auth-section">
                 <button class="btn" id="authorizeBtn" onclick="handleAuthClick()">Connect Gmail Account</button>
                 <button class="btn" id="signoutBtn" onclick="handleSignoutClick()" style="display:none; background:#e74c3c;">Sign Out</button>
                 <button class="btn" id="refreshBtn" onclick="fetchDebitAlerts()" style="display:none; margin-left:10px;">Refresh Data</button>
-                <button class="btn btn-secondary" onclick="debugCategorization()" style="display:none; margin-left:10px;" id="debugBtn">Debug Categorization</button>
             </div>
             <div id="error" class="error hidden"></div>
         </div>
@@ -412,11 +396,6 @@
                     <h2 style="margin-bottom:20px;">Recent Expense Transactions</h2>
                     <div id="transactionsContainer"></div>
                 </div>
-                
-                <div class="debug-info" id="debugInfo" style="display: none;">
-                    <h3>Debug Information</h3>
-                    <div id="debugContent"></div>
-                </div>
             </div>
         </div>
 
@@ -439,15 +418,16 @@
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 
         // Internal accounts/companies (NOT expenses)
-        let INTERNAL_ACCOUNTS = [
+        const INTERNAL_ACCOUNTS = [
             'enavec pharmacy',
             'enavec pharmaceuticals',
             'iloanugo chijioke francis',
             'chijioke francis iloanugo',
-            'moniepoint'
+            'moniepoint' // Add your other internal account names here
         ];
 
         // Supplier keywords (these ARE expenses but tracked separately)
+        // Add your suppliers here - they will be saved permanently
         let SUPPLIERS = [
             'osbud pharmacy',
             'osbud pharmacy and stores',
@@ -469,6 +449,7 @@
             'evans medical',
             'zolon healthcare',
             'dana drugs'
+            // Add more suppliers in the format: 'supplier name',
         ];
 
         const CATEGORIES = {
@@ -482,20 +463,14 @@
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical']
         };
 
-        // Load saved suppliers and internal accounts from browser storage
-        function loadSavedData() {
-            const savedSuppliers = localStorage.getItem('suppliers');
-            if (savedSuppliers) {
-                SUPPLIERS = JSON.parse(savedSuppliers);
+        // Load saved suppliers from browser storage
+        function loadSuppliers() {
+            const saved = localStorage.getItem('suppliers');
+            if (saved) {
+                SUPPLIERS = JSON.parse(saved);
             }
             CATEGORIES['Suppliers'] = SUPPLIERS;
             updateSuppliersInput();
-            
-            const savedInternal = localStorage.getItem('internalAccounts');
-            if (savedInternal) {
-                INTERNAL_ACCOUNTS = JSON.parse(savedInternal);
-            }
-            updateInternalAccountsInput();
         }
 
         // Save suppliers to browser storage
@@ -503,23 +478,13 @@
             localStorage.setItem('suppliers', JSON.stringify(SUPPLIERS));
         }
 
-        // Save internal accounts to browser storage
-        function saveInternalAccounts() {
-            localStorage.setItem('internalAccounts', JSON.stringify(INTERNAL_ACCOUNTS));
-        }
-
         // Update the input field with current suppliers
         function updateSuppliersInput() {
             document.getElementById('suppliersInput').value = SUPPLIERS.join(', ');
         }
 
-        // Update the input field with current internal accounts
-        function updateInternalAccountsInput() {
-            document.getElementById('internalAccountsInput').value = INTERNAL_ACCOUNTS.join(', ');
-        }
-
-        // Initialize on page load
-        loadSavedData();
+        // Initialize suppliers on page load
+        loadSuppliers();
 
         const CATEGORY_COLORS = {
             'Suppliers': '#e74c3c',
@@ -544,119 +509,44 @@
             
             // Re-categorize existing transactions
             if (allTransactions.length > 0) {
-                allTransactions = allTransactions.map(t => {
-                    const category = categorizeTransaction(t.fullText, t.recipientName);
-                    return {
-                        ...t,
-                        category: category,
-                        isInternal: category === 'Internal Transfer'
-                    };
-                });
+                allTransactions = allTransactions.map(t => ({
+                    ...t,
+                    category: categorizeTransaction(t.fullText, t.recipientName),
+                    isInternal: isInternalTransfer(t.fullText, t.recipientName)
+                }));
                 applyDateFilter();
             }
             
             alert('Suppliers saved permanently! Transactions have been re-categorized.');
         }
 
-        function updateInternalAccounts() {
-            const input = document.getElementById('internalAccountsInput').value;
-            INTERNAL_ACCOUNTS = input.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
-            
-            // Save to browser storage
-            saveInternalAccounts();
-            
-            // Re-categorize existing transactions
-            if (allTransactions.length > 0) {
-                allTransactions = allTransactions.map(t => {
-                    const category = categorizeTransaction(t.fullText, t.recipientName);
-                    return {
-                        ...t,
-                        category: category,
-                        isInternal: category === 'Internal Transfer'
-                    };
-                });
-                applyDateFilter();
-            }
-            
-            alert('Internal accounts saved permanently! Transactions have been re-categorized.');
-        }
-
-        // ENHANCED internal transfer detection - MORE SPECIFIC
         function isInternalTransfer(text, recipientName = null) {
             if (!text) return false;
             
             const searchText = (recipientName ? recipientName + ' ' + text : text).toLowerCase();
-            
-            // Only return true if we have a clear match with internal accounts
             return INTERNAL_ACCOUNTS.some(account => {
                 const accountLower = account.toLowerCase();
-                
-                // Require more exact matching for internal transfers
-                if (recipientName && recipientName.includes(accountLower)) {
+                // Exact match
+                if (searchText.includes(accountLower)) {
                     return true;
                 }
-                
-                // Look for exact phrases in the text
-                const exactPhrases = [
-                    ` ${accountLower} `,
-                    ` ${accountLower}.`,
-                    ` ${accountLower},`,
-                    `to ${accountLower}`
-                ];
-                
-                return exactPhrases.some(phrase => searchText.includes(phrase));
+                // Partial match for company names
+                const accountWords = account.split(' ').filter(word => word.length > 3);
+                return accountWords.some(word => searchText.includes(word.toLowerCase()));
             });
         }
 
-        // IMPROVED supplier detection - MORE AGGRESSIVE
-        function isSupplierPayment(searchText, recipientName = null) {
-            const fullSearchText = (recipientName ? recipientName + ' ' + searchText : searchText).toLowerCase();
-            
-            return SUPPLIERS.some(supplier => {
-                const supplierLower = supplier.toLowerCase();
-                
-                // Check if recipient name matches supplier
-                if (recipientName && recipientName.includes(supplierLower)) {
-                    return true;
-                }
-                
-                // Check if supplier appears in the full text
-                if (fullSearchText.includes(supplierLower)) {
-                    return true;
-                }
-                
-                // Check partial matches for company names
-                const supplierWords = supplier.split(' ').filter(word => word.length > 2);
-                if (supplierWords.length > 0) {
-                    const matchCount = supplierWords.filter(word => 
-                        (recipientName && recipientName.includes(word.toLowerCase())) ||
-                        fullSearchText.includes(word.toLowerCase())
-                    ).length;
-                    
-                    // If most words match, consider it a supplier
-                    return matchCount >= Math.max(1, supplierWords.length * 0.7);
-                }
-                
-                return false;
-            });
-        }
-
-        // FIXED categorizeTransaction function - CORRECT ORDER
+        // FIXED: Check suppliers BEFORE internal transfers
         function categorizeTransaction(text, recipientName = null) {
             const searchText = (recipientName ? recipientName + ' ' + text : text).toLowerCase();
             
-            // DEBUG: Log what we're checking
-            console.log('Categorizing:', { recipientName, text: text.substring(0, 100) });
-            
             // Check suppliers FIRST (before internal transfers)
-            if (isSupplierPayment(text, recipientName)) {
-                console.log('-> Categorized as Supplier');
+            if (isSupplierPayment(searchText, recipientName)) {
                 return 'Suppliers';
             }
             
             // Then check if it's an internal transfer
             if (isInternalTransfer(text, recipientName)) {
-                console.log('-> Categorized as Internal Transfer');
                 return 'Internal Transfer';
             }
             
@@ -665,19 +555,33 @@
                 if (category === 'Suppliers') continue; // Already handled above
                 
                 if (keywords.some(keyword => {
-                    const keywordLower = keyword.toLowerCase();
-                    if (recipientName && recipientName.includes(keywordLower)) {
+                    if (recipientName && recipientName.includes(keyword.toLowerCase())) {
                         return true;
                     }
-                    return searchText.includes(keywordLower);
+                    return searchText.includes(keyword.toLowerCase());
                 })) {
-                    console.log('-> Categorized as', category);
                     return category;
                 }
             }
             
-            console.log('-> Categorized as Other');
             return 'Other';
+        }
+
+        function isSupplierPayment(searchText, recipientName = null) {
+            const fullSearchText = (recipientName ? recipientName + ' ' + searchText : searchText).toLowerCase();
+            
+            return SUPPLIERS.some(supplier => {
+                const supplierLower = supplier.toLowerCase();
+                // Exact match in recipient name
+                if (recipientName && recipientName.includes(supplierLower)) {
+                    return true;
+                }
+                // Exact match in full text
+                if (fullSearchText.includes(supplierLower)) {
+                    return true;
+                }
+                return false;
+            });
         }
 
         function initializeGoogleAPI() {
@@ -700,7 +604,6 @@
                     document.getElementById('authorizeBtn').style.display = 'none';
                     document.getElementById('signoutBtn').style.display = 'inline-block';
                     document.getElementById('refreshBtn').style.display = 'inline-block';
-                    document.getElementById('debugBtn').style.display = 'inline-block';
                     document.getElementById('setupInstructions').style.display = 'none';
                     fetchDebitAlerts();
                 },
@@ -726,7 +629,6 @@
             document.getElementById('authorizeBtn').style.display = 'inline-block';
             document.getElementById('signoutBtn').style.display = 'none';
             document.getElementById('refreshBtn').style.display = 'none';
-            document.getElementById('debugBtn').style.display = 'none';
             document.getElementById('resultsContainer').classList.add('hidden');
             allTransactions = [];
             filteredTransactions = [];
@@ -780,6 +682,57 @@
                 showError('Error fetching emails: ' + error.message);
                 showLoading(false);
             }
+        }
+
+        function parseEmailForTransaction(message) {
+            const headers = message.payload.headers;
+            const subject = headers.find(h => h.name === 'Subject')?.value || '';
+            const date = headers.find(h => h.name === 'Date')?.value || '';
+            
+            let body = '';
+            if (message.payload.body.data) {
+                body = atob(message.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+            } else if (message.payload.parts) {
+                const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain');
+                if (textPart && textPart.body.data) {
+                    body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                }
+            }
+
+            const fullText = subject + ' ' + body;
+
+            const amountPatterns = [
+                /(?:NGN|₦|N|¥)\s*([\d,]+\.?\d*)/i,
+                /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|¥)?\s*([\d,]+\.?\d*)/i,
+                /([\d,]+\.?\d*)\s*(?:NGN|₦|N|¥)/i,
+                /debit of\s*(?:NGN|₦|N|¥)?\s*([\d,]+\.?\d*)/i
+            ];
+
+            let amount = null;
+            for (const pattern of amountPatterns) {
+                const match = fullText.match(pattern);
+                if (match) {
+                    amount = parseFloat(match[1].replace(/,/g, ''));
+                    if (amount > 0) break;
+                }
+            }
+
+            if (!amount) return null;
+
+            // Extract beneficiary/recipient name with multiple strategies
+            let recipientName = extractRecipientName(fullText, body);
+            
+            const category = categorizeTransaction(fullText, recipientName);
+
+            return {
+                date: new Date(date),
+                description: subject.substring(0, 100),
+                amount: amount,
+                category: category,
+                fullText: fullText,
+                recipientName: recipientName,
+                isInternal: category === 'Internal Transfer'
+            };
         }
 
         // NEW FUNCTION: Extract recipient name from email content
@@ -846,101 +799,6 @@
             }
 
             return null;
-        }
-
-        function parseEmailForTransaction(message) {
-            const headers = message.payload.headers;
-            const subject = headers.find(h => h.name === 'Subject')?.value || '';
-            const date = headers.find(h => h.name === 'Date')?.value || '';
-            
-            let body = '';
-            if (message.payload.body.data) {
-                body = atob(message.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-            } else if (message.payload.parts) {
-                const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain');
-                if (textPart && textPart.body.data) {
-                    body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-                }
-            }
-
-            const fullText = subject + ' ' + body;
-
-            // Enhanced amount patterns
-            const amountPatterns = [
-                /(?:NGN|₦|N|¥)\s*([\d,]+\.?\d*)/i,
-                /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|¥)?\s*([\d,]+\.?\d*)/i,
-                /([\d,]+\.?\d*)\s*(?:NGN|₦|N|¥)/i,
-                /debit of\s*(?:NGN|₦|N|¥)?\s*([\d,]+\.?\d*)/i
-            ];
-
-            let amount = null;
-            for (const pattern of amountPatterns) {
-                const match = fullText.match(pattern);
-                if (match) {
-                    amount = parseFloat(match[1].replace(/,/g, ''));
-                    if (amount > 0) break;
-                }
-            }
-
-            if (!amount) return null;
-
-            // Extract beneficiary/recipient name with multiple strategies
-            let recipientName = extractRecipientName(fullText, body);
-            
-            console.log('=== PARSING TRANSACTION ===');
-            console.log('Subject:', subject);
-            console.log('Recipient:', recipientName);
-            console.log('Amount:', amount);
-            
-            const category = categorizeTransaction(fullText, recipientName);
-            
-            console.log('Final Category:', category);
-            console.log('===========================');
-
-            return {
-                date: new Date(date),
-                description: subject.substring(0, 100),
-                amount: amount,
-                category: category,
-                fullText: fullText,
-                recipientName: recipientName,
-                isInternal: category === 'Internal Transfer'
-            };
-        }
-
-        // Add this function to help debug categorization
-        function debugCategorization() {
-            console.log('=== DEBUG CATEGORIZATION ===');
-            console.log('Internal Accounts:', INTERNAL_ACCOUNTS);
-            console.log('Suppliers:', SUPPLIERS);
-            
-            allTransactions.forEach((t, i) => {
-                console.log(`Transaction ${i + 1}:`);
-                console.log('  Amount:', t.amount);
-                console.log('  Recipient:', t.recipientName);
-                console.log('  Category:', t.category);
-                console.log('  Description:', t.description);
-            });
-            
-            // Show this in the UI too
-            const debugInfo = document.getElementById('debugInfo');
-            const debugContent = document.getElementById('debugContent');
-            
-            let debugHtml = '<h4>Transaction Analysis:</h4>';
-            allTransactions.forEach((t, i) => {
-                debugHtml += `
-                    <div style="margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
-                        <strong>Transaction ${i + 1}:</strong> ₦${t.amount.toLocaleString()}<br>
-                        <strong>Recipient:</strong> ${t.recipientName || 'Not found'}<br>
-                        <strong>Category:</strong> ${t.category}<br>
-                        <strong>Description:</strong> ${t.description}<br>
-                        <strong>Internal:</strong> ${t.isInternal ? 'Yes' : 'No'}
-                    </div>
-                `;
-            });
-            
-            debugContent.innerHTML = debugHtml;
-            debugInfo.style.display = 'block';
         }
 
         function setDateFilter(filter) {
