@@ -263,22 +263,6 @@
         .tab-content.active {
             display: block;
         }
-        .debug-section {
-            background: #f0f0f0;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
-            font-family: monospace;
-            font-size: 12px;
-        }
-        .transaction-debug {
-            background: #e8f4f8;
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 5px;
-            border-left: 3px solid #667eea;
-        }
     </style>
 </head>
 <body>
@@ -310,7 +294,7 @@
             
             <div class="input-group">
                 <label for="suppliersInput">Manage Suppliers (comma-separated):</label>
-                <input type="text" id="suppliersInput" placeholder="e.g., osbud pharmacy, xyz supplies, abc stores">
+                <input type="text" id="suppliersInput" placeholder="e.g., osbud pharmacy, xyz supplies, abc stores" value="osbud pharmacy, osbud pharmacy and stores">
                 <button class="btn btn-secondary" onclick="updateSuppliers()" style="margin-top: 10px;">Update Suppliers</button>
             </div>
             
@@ -370,7 +354,6 @@
                     <button class="tab" onclick="switchTab('trends')">Spending Trends</button>
                     <button class="tab" onclick="switchTab('categories')">Categories</button>
                     <button class="tab" onclick="switchTab('internal')">Internal Transfers</button>
-                    <button class="tab" onclick="switchTab('debug')">Debug Info</button>
                 </div>
 
                 <div id="overview" class="tab-content active">
@@ -403,14 +386,6 @@
                     </div>
                 </div>
 
-                <div id="debug" class="tab-content">
-                    <div class="category-section">
-                        <h2 style="margin-bottom:20px;">Debug Information</h2>
-                        <p style="color: #666; margin-bottom: 20px;">This shows how transactions are being categorized. Use this to find the exact keywords in your emails.</p>
-                        <div id="debugContainer"></div>
-                    </div>
-                </div>
-
                 <div class="transactions-section">
                     <h2 style="margin-bottom:20px;">Recent Expense Transactions</h2>
                     <div id="transactionsContainer"></div>
@@ -437,35 +412,28 @@
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 
         // Internal accounts/companies (NOT expenses)
+        // Using shorter keywords to catch variations
         const INTERNAL_ACCOUNTS = [
-            'enavec pharmacy',
-            'enavec pharmaceuticals',
-            'enavec',
-            'iloanugo chijioke francis',
-            'chijioke francis iloanugo',
+            'enavec',  // Catches: Enavec Pharmacy, Enavec Pharmaceuticals, etc.
+            'iloanugo',  // Catches any form of your name
+            'chijioke francis',
+            'francis iloanugo',
             'moniepoint'
         ];
 
         // Supplier keywords (these ARE expenses but tracked separately)
+        // Add your suppliers here - they will be saved permanently
+        // Use SHORT keywords to catch variations
         let SUPPLIERS = [
-            'osbud pharmacy',
-            'osbud pharmacy and stores',
-            'osbud',
-            'emzor pharmaceutical',
+            'osbud',  // Catches: OSBUD Pharmacy, Osbud Pharmacy and Stores, etc.
             'emzor',
-            'juhel pharma',
             'juhel',
             'mega lifesciences',
-            'mega life',
-            'fidson healthcare',
             'fidson',
             'swipha',
-            'drugfield pharmaceuticals',
             'drugfield',
             'medplus',
-            'neimeth international',
             'neimeth',
-            'chi pharmaceuticals',
             'chi pharma',
             'may & baker',
             'may and baker',
@@ -474,11 +442,9 @@
             'gsk',
             'glaxo',
             'evans medical',
-            'evans',
-            'zolon healthcare',
             'zolon',
-            'dana drugs',
-            'dana'
+            'dana drugs'
+            // Add more suppliers in the format: 'supplier name',
         ];
 
         const CATEGORIES = {
@@ -489,10 +455,10 @@
             'Utilities': ['electricity', 'water', 'phcn', 'nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
-            'Healthcare': ['hospital', 'clinic', 'doctor', 'medical']
+            'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical']
         };
 
-        // Load saved suppliers
+        // Load saved suppliers from browser storage
         function loadSuppliers() {
             const saved = localStorage.getItem('suppliers');
             if (saved) {
@@ -502,14 +468,17 @@
             updateSuppliersInput();
         }
 
+        // Save suppliers to browser storage
         function saveSuppliers() {
             localStorage.setItem('suppliers', JSON.stringify(SUPPLIERS));
         }
 
+        // Update the input field with current suppliers
         function updateSuppliersInput() {
             document.getElementById('suppliersInput').value = SUPPLIERS.join(', ');
         }
 
+        // Initialize suppliers on page load
         loadSuppliers();
 
         const CATEGORY_COLORS = {
@@ -530,8 +499,10 @@
             SUPPLIERS = input.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
             CATEGORIES['Suppliers'] = SUPPLIERS;
             
+            // Save to browser storage
             saveSuppliers();
             
+            // Re-categorize existing transactions
             if (allTransactions.length > 0) {
                 allTransactions = allTransactions.map(t => ({
                     ...t,
@@ -546,46 +517,11 @@
 
         function isInternalTransfer(text) {
             const lowerText = text.toLowerCase();
-            const matchedAccount = INTERNAL_ACCOUNTS.find(account => 
-                lowerText.includes(account.toLowerCase())
-            );
-            
-            if (matchedAccount) {
-                console.log('✅ INTERNAL TRANSFER matched:', matchedAccount, '| Text preview:', text.substring(0, 150));
-            }
-            
-            return !!matchedAccount;
-        }
-
-        function categorizeTransaction(text) {
-            const lowerText = text.toLowerCase();
-            
-            // Check suppliers first
-            const matchedSupplier = SUPPLIERS.find(supplier => 
-                lowerText.includes(supplier.toLowerCase())
-            );
-            
-            if (matchedSupplier) {
-                console.log('💰 SUPPLIER matched:', matchedSupplier, '| Text preview:', text.substring(0, 150));
-                return 'Suppliers';
-            }
-            
-            // Then check other categories
-            for (const [category, keywords] of Object.entries(CATEGORIES)) {
-                if (category === 'Suppliers') continue;
-                
-                const matchedKeyword = keywords.find(keyword => 
-                    lowerText.includes(keyword.toLowerCase())
-                );
-                
-                if (matchedKeyword) {
-                    console.log('📂 CATEGORY matched:', category, '(', matchedKeyword, ') | Text preview:', text.substring(0, 150));
-                    return category;
-                }
-            }
-            
-            console.log('❓ NO MATCH - categorized as Other | Text preview:', text.substring(0, 150));
-            return 'Other';
+            // More flexible matching - check if ANY internal keyword appears
+            return INTERNAL_ACCOUNTS.some(account => {
+                const keyword = account.toLowerCase();
+                return lowerText.includes(keyword);
+            });
         }
 
         function initializeGoogleAPI() {
@@ -641,8 +577,6 @@
         async function fetchDebitAlerts() {
             showLoading(true);
             hideError();
-            console.clear();
-            console.log('🔍 Starting to fetch debit alerts...');
 
             try {
                 const query = 'subject:(debit OR debited OR transaction) -credit';
@@ -663,8 +597,6 @@
                     return;
                 }
 
-                console.log(`📧 Found ${data.messages.length} emails to process`);
-
                 const transactions = [];
                 for (const message of data.messages) {
                     const msgResponse = await fetch(
@@ -682,7 +614,6 @@
                     }
                 }
 
-                console.log(`✅ Successfully parsed ${transactions.length} transactions`);
                 allTransactions = transactions.sort((a, b) => b.date - a.date);
                 applyDateFilter();
                 showLoading(false);
@@ -727,7 +658,6 @@
 
             if (!amount) return null;
 
-            const isInternal = isInternalTransfer(fullText);
             const category = categorizeTransaction(fullText);
 
             return {
@@ -735,9 +665,36 @@
                 description: subject.substring(0, 100),
                 amount: amount,
                 category: category,
-                fullText: fullText,
-                isInternal: isInternal
+                fullText: fullText
             };
+        }
+
+        function categorizeTransaction(text) {
+            const lowerText = text.toLowerCase();
+            
+            // Check if it's an internal transfer first (highest priority)
+            if (isInternalTransfer(lowerText)) {
+                return 'Internal Transfer';
+            }
+            
+            // Then check suppliers (second priority)
+            for (const supplier of SUPPLIERS) {
+                if (lowerText.includes(supplier.toLowerCase())) {
+                    return 'Suppliers';
+                }
+            }
+            
+            // Then check other categories
+            for (const [category, keywords] of Object.entries(CATEGORIES)) {
+                if (category === 'Suppliers') continue; // Already checked
+                for (const keyword of keywords) {
+                    if (lowerText.includes(keyword.toLowerCase())) {
+                        return category;
+                    }
+                }
+            }
+            
+            return 'Other';
         }
 
         function setDateFilter(filter) {
@@ -814,18 +771,11 @@
                 return;
             }
 
-            console.log('📊 Displaying results for', transactions.length, 'transactions');
-
             // Separate transactions by type
             const internalTransfers = transactions.filter(t => t.isInternal);
             const supplierTransactions = transactions.filter(t => !t.isInternal && t.category === 'Suppliers');
             const mainExpenses = transactions.filter(t => !t.isInternal && t.category !== 'Suppliers');
-            const allExpenses = transactions.filter(t => !t.isInternal);
-
-            console.log('💵 Internal Transfers:', internalTransfers.length);
-            console.log('🏭 Supplier Transactions:', supplierTransactions.length);
-            console.log('💰 Main Expenses:', mainExpenses.length);
-            console.log('📈 Total Expenses:', allExpenses.length);
+            const allExpenses = transactions.filter(t => !t.isInternal); // suppliers + main
 
             // Calculate totals
             const internalTotal = internalTransfers.reduce((sum, t) => sum + t.amount, 0);
@@ -833,15 +783,13 @@
             const mainTotal = mainExpenses.reduce((sum, t) => sum + t.amount, 0);
             const expenseTotal = allExpenses.reduce((sum, t) => sum + t.amount, 0);
 
-            console.log('💸 Totals - Internal:', internalTotal, '| Supplier:', supplierTotal, '| Main:', mainTotal, '| Total Expenses:', expenseTotal);
-
             // Update summary cards
             document.getElementById('mainExpenses').textContent = `₦${mainTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('supplierTotal').textContent = `₦${supplierTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('totalSpent').textContent = `₦${expenseTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('internalTransfers').textContent = `₦${internalTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
-            // Group expenses by category
+            // Group expenses by category (excluding internal transfers)
             const byCategory = {};
             allExpenses.forEach(t => {
                 if (!byCategory[t.category]) {
@@ -860,7 +808,7 @@
                 `).join('');
             document.getElementById('categoriesContainer').innerHTML = categoriesHtml;
 
-            // Display expense transactions
+            // Display expense transactions (main + suppliers, no internal)
             const transactionsHtml = allExpenses
                 .slice(0, 50)
                 .map(t => `
@@ -888,26 +836,12 @@
                 `).join('');
             document.getElementById('internalTransactionsContainer').innerHTML = internalHtml || '<p style="color: #666;">No internal transfers found.</p>';
 
-            // Display debug information
-            const debugHtml = transactions
-                .slice(0, 20)
-                .map(t => `
-                    <div class="transaction-debug">
-                        <strong>Amount:</strong> ₦${t.amount.toLocaleString()}<br>
-                        <strong>Type:</strong> ${t.isInternal ? '🔄 Internal Transfer' : (t.category === 'Suppliers' ? '🏭 Supplier Payment' : '💰 Expense')}<br>
-                        <strong>Category:</strong> ${t.category}<br>
-                        <strong>Date:</strong> ${t.date.toLocaleDateString()}<br>
-                        <strong>Description:</strong> ${t.description}<br>
-                        <strong>Email Text Preview:</strong> ${t.fullText.substring(0, 200)}...
-                    </div>
-                `).join('');
-            document.getElementById('debugContainer').innerHTML = debugHtml || '<p style="color: #666;">No transactions to debug.</p>';
-
             createCharts(allExpenses, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
         }
 
         function createCharts(transactions, byCategory) {
+            // Destroy existing charts
             Object.values(charts).forEach(chart => chart?.destroy());
 
             // Category Pie Chart
