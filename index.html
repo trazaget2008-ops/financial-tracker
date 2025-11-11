@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker1</title>
+    <title>Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -274,7 +274,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💳 Debit Alert Tracker1</h1>
+            <h1>💳 Debit Alert Tracker</h1>
             <p>Automatically analyze your spending from Gmail debit alerts</p>
         </div>
 
@@ -567,19 +567,38 @@
             return 'Other';
         }
 
+        // FIXED: Improved supplier detection
         function isSupplierPayment(searchText, recipientName = null) {
             const fullSearchText = (recipientName ? recipientName + ' ' + searchText : searchText).toLowerCase();
             
             return SUPPLIERS.some(supplier => {
                 const supplierLower = supplier.toLowerCase();
-                // Exact match in recipient name
+                
+                // Check if recipient name matches supplier exactly
                 if (recipientName && recipientName.includes(supplierLower)) {
                     return true;
                 }
-                // Exact match in full text
+                
+                // Check if supplier appears in the full text
                 if (fullSearchText.includes(supplierLower)) {
                     return true;
                 }
+                
+                // Check for partial matches in recipient name
+                if (recipientName) {
+                    const supplierWords = supplierLower.split(' ').filter(word => word.length > 3);
+                    if (supplierWords.length > 0) {
+                        const matchCount = supplierWords.filter(word => 
+                            recipientName.includes(word)
+                        ).length;
+                        
+                        // If most words match, consider it a supplier
+                        if (matchCount >= Math.max(1, supplierWords.length * 0.7)) {
+                            return true;
+                        }
+                    }
+                }
+                
                 return false;
             });
         }
@@ -1096,4 +1115,3 @@
     </script>
 </body>
 </html>
-
