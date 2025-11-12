@@ -65,6 +65,16 @@
         .btn-secondary:hover {
             background: #5a6268;
         }
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        .btn-danger {
+            background: #e74c3c;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
         .setup-instructions {
             background: #fff3cd;
             border: 2px solid #ffc107;
@@ -108,6 +118,49 @@
         .input-group input:focus {
             outline: none;
             border-color: #667eea;
+        }
+        .supplier-management {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .supplier-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .supplier-tag {
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .supplier-tag button {
+            background: rgba(255,255,255,0.3);
+            border: none;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .supplier-tag button:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        .add-supplier-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .add-supplier-form input {
+            flex: 1;
         }
         .date-filters {
             display: flex;
@@ -175,17 +228,12 @@
         }
         .category-item {
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
             padding: 15px;
             background: #f8f9fa;
             border-radius: 8px;
             margin-bottom: 10px;
-        }
-        .category-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
         }
         .category-name {
             font-weight: 600;
@@ -195,16 +243,6 @@
             font-size: 18px;
             font-weight: bold;
             color: #667eea;
-        }
-        .category-transactions {
-            font-size: 12px;
-            color: #666;
-            margin-top: 4px;
-            padding-left: 10px;
-            border-left: 2px solid #e0e0e0;
-        }
-        .category-transactions div {
-            padding: 2px 0;
         }
         .transactions-section {
             margin-top: 30px;
@@ -278,52 +316,6 @@
         .tab-content.active {
             display: block;
         }
-        .supplier-management {
-            background: #e8f5e9;
-            border: 2px solid #4caf50;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .supplier-management h3 {
-            color: #2e7d32;
-            margin-bottom: 15px;
-        }
-        .supplier-list {
-            margin: 15px 0;
-        }
-        .supplier-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            background: white;
-            border-radius: 5px;
-            margin-bottom: 8px;
-        }
-        .supplier-item button {
-            background: #f44336;
-            color: white;
-            border: none;
-            padding: 5px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .supplier-item button:hover {
-            background: #d32f2f;
-        }
-        .add-supplier-form {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .add-supplier-form input {
-            flex: 1;
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 5px;
-        }
     </style>
 </head>
 <body>
@@ -352,23 +344,22 @@
                 <label for="clientId">Google OAuth Client ID:</label>
                 <input type="text" id="clientId" placeholder="Enter your Client ID (e.g., 123456789-abcdef.apps.googleusercontent.com)">
             </div>
-            
-            <div class="supplier-management">
-                <h3>📦 Supplier Management</h3>
-                <p style="color: #2e7d32; margin-bottom: 10px;">Manage your list of suppliers for categorization:</p>
-                <div class="supplier-list" id="supplierList"></div>
-                <div class="add-supplier-form">
-                    <input type="text" id="newSupplier" placeholder="Enter supplier name (e.g., osbud pharmacy and stores limited)">
-                    <button class="btn" onclick="addSupplier()">Add Supplier</button>
-                </div>
-            </div>
-            
             <div class="auth-section">
                 <button class="btn" id="authorizeBtn" onclick="handleAuthClick()">Connect Gmail Account</button>
                 <button class="btn" id="signoutBtn" onclick="handleSignoutClick()" style="display:none; background:#e74c3c;">Sign Out</button>
                 <button class="btn" id="refreshBtn" onclick="fetchDebitAlerts()" style="display:none; margin-left:10px;">Refresh Data</button>
             </div>
             <div id="error" class="error hidden"></div>
+            
+            <div class="supplier-management">
+                <h3>Supplier Management</h3>
+                <p style="color: #666; margin-bottom: 10px;">Add suppliers to automatically categorize their transactions. Keywords are matched flexibly.</p>
+                <div class="add-supplier-form">
+                    <input type="text" id="newSupplierInput" placeholder="Enter supplier name (e.g., Osbud Pharmacy)">
+                    <button class="btn btn-small" onclick="addSupplier()">Add Supplier</button>
+                </div>
+                <div class="supplier-list" id="supplierList"></div>
+            </div>
         </div>
 
         <div id="resultsContainer" class="hidden">
@@ -439,7 +430,7 @@
                 </div>
 
                 <div class="transactions-section">
-                    <h2 style="margin-bottom:20px;">Recent Transactions</h2>
+                    <h2 style="margin-bottom:20px;">All Transactions (with Descriptions)</h2>
                     <div id="transactionsContainer"></div>
                 </div>
             </div>
@@ -459,7 +450,7 @@
         let filteredTransactions = [];
         let currentFilter = 'today';
         let charts = {};
-        let suppliersList = [];
+        let suppliers = ['osbud pharmacy and stores limited'];
 
         const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest';
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
@@ -472,9 +463,10 @@
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
+            'Transfer': ['transfer', 'sent to', 'payment to'],
             'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical'],
-            'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'sms charge', 'atm fee', 'commission', 'vat'],
-            'Transfer': ['transfer', 'sent to', 'payment to']
+            'Supplier Payments': [],
+            'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge']
         };
 
         const CATEGORY_COLORS = {
@@ -485,12 +477,91 @@
             'Entertainment': '#9966FF',
             'Shopping': '#FF9F40',
             'Healthcare': '#FF6384',
-            'Internal Transfers': '#2ecc71',
-            'Supplier Payments': '#e67e22',
-            'Bank Charges': '#e74c3c',
             'Transfer': '#C9CBCF',
-            'Other': '#95a5a6'
+            'Internal Transfers': '#3498db',
+            'Supplier Payments': '#e67e22',
+            'Bank Charges': '#95a5a6',
+            'Other': '#7f8c8d'
         };
+
+        // Load suppliers from localStorage
+        function loadSuppliers() {
+            const saved = localStorage.getItem('debitTracker_suppliers');
+            if (saved) {
+                suppliers = JSON.parse(saved);
+            }
+            displaySuppliers();
+        }
+
+        // Save suppliers to localStorage
+        function saveSuppliers() {
+            localStorage.setItem('debitTracker_suppliers', JSON.stringify(suppliers));
+        }
+
+        // Display suppliers
+        function displaySuppliers() {
+            const container = document.getElementById('supplierList');
+            if (suppliers.length === 0) {
+                container.innerHTML = '<p style="color: #666; margin-top: 15px;">No suppliers added yet.</p>';
+                return;
+            }
+            
+            container.innerHTML = suppliers.map((supplier, index) => `
+                <div class="supplier-tag">
+                    <span>${supplier}</span>
+                    <button onclick="removeSupplier(${index})" title="Remove">×</button>
+                </div>
+            `).join('');
+        }
+
+        // Add supplier
+        function addSupplier() {
+            const input = document.getElementById('newSupplierInput');
+            const supplierName = input.value.trim();
+            
+            if (!supplierName) {
+                showError('Please enter a supplier name');
+                return;
+            }
+            
+            if (suppliers.some(s => s.toLowerCase() === supplierName.toLowerCase())) {
+                showError('This supplier already exists');
+                return;
+            }
+            
+            suppliers.push(supplierName);
+            saveSuppliers();
+            displaySuppliers();
+            input.value = '';
+            hideError();
+            
+            // Re-categorize transactions if they exist
+            if (allTransactions.length > 0) {
+                allTransactions = allTransactions.map(t => ({
+                    ...t,
+                    category: categorizeTransaction(t.fullText)
+                }));
+                applyDateFilter();
+            }
+        }
+
+        // Remove supplier
+        function removeSupplier(index) {
+            if (confirm(`Remove "${suppliers[index]}" from suppliers list?`)) {
+                suppliers.splice(index, 1);
+                saveSuppliers();
+                displaySuppliers();
+                
+                // Re-categorize transactions if they exist
+                if (allTransactions.length > 0) {
+                    allTransactions = allTransactions.map(t => ({
+                        ...t,
+                        category: categorizeTransaction(t.fullText)
+                    }));
+                    applyDateFilter();
+                }
+            }
+        }
 
         function initializeGoogleAPI() {
             const clientId = document.getElementById('clientId').value.trim();
@@ -640,21 +711,39 @@
         function categorizeTransaction(text) {
             text = text.toLowerCase();
             
-            // Check supplier payments first (dynamic list)
-            if (suppliersList.length > 0) {
-                for (const supplier of suppliersList) {
-                    if (text.includes(supplier.toLowerCase())) {
-                        return 'Supplier Payments';
-                    }
+            // Check Internal Transfers first
+            for (const keyword of CATEGORIES['Internal Transfers']) {
+                if (text.includes(keyword.toLowerCase())) {
+                    return 'Internal Transfers';
+                }
+            }
+            
+            // Check Supplier Payments
+            for (const supplier of suppliers) {
+                if (text.includes(supplier.toLowerCase())) {
+                    return 'Supplier Payments';
+                }
+            }
+            
+            // Check Bank Charges
+            for (const keyword of CATEGORIES['Bank Charges']) {
+                if (text.includes(keyword.toLowerCase())) {
+                    return 'Bank Charges';
                 }
             }
             
             // Check other categories
             for (const [category, keywords] of Object.entries(CATEGORIES)) {
-                if (keywords.some(keyword => text.includes(keyword.toLowerCase()))) {
-                    return category;
+                if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
+                    continue;
+                }
+                for (const keyword of keywords) {
+                    if (text.includes(keyword.toLowerCase())) {
+                        return category;
+                    }
                 }
             }
+            
             return 'Other';
         }
 
@@ -751,31 +840,15 @@
 
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
-                .map(([cat, amount]) => {
-                    const catTransactions = transactions.filter(t => t.category === cat);
-                    const transactionsHtml = catTransactions.slice(0, 5).map(t => 
-                        `<div>• ${t.description.substring(0, 80)}... (₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})})</div>`
-                    ).join('');
-                    const moreCount = catTransactions.length > 5 ? `<div style="font-style:italic;">...and ${catTransactions.length - 5} more</div>` : '';
-                    
-                    return `
-                        <div class="category-item">
-                            <div class="category-header">
-                                <span class="category-name">${cat}</span>
-                                <span class="category-amount">₦${amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div class="category-transactions">
-                                <strong>${catTransactions.length} transaction(s):</strong>
-                                ${transactionsHtml}
-                                ${moreCount}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                .map(([cat, amount]) => `
+                    <div class="category-item">
+                        <span class="category-name">${cat}</span>
+                        <span class="category-amount">₦${amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
+                    </div>
+                `).join('');
             document.getElementById('categoriesContainer').innerHTML = categoriesHtml;
 
             const transactionsHtml = transactions
-                .slice(0, 50)
                 .map(t => `
                     <div class="transaction-item">
                         <div class="transaction-details">
@@ -803,7 +876,7 @@
                     labels: Object.keys(byCategory),
                     datasets: [{
                         data: Object.values(byCategory),
-                        backgroundColor: Object.keys(byCategory).map(cat => CATEGORY_COLORS[cat] || '#95a5a6')
+                        backgroundColor: Object.keys(byCategory).map(cat => CATEGORY_COLORS[cat] || '#7f8c8d')
                     }]
                 },
                 options: {
@@ -871,7 +944,7 @@
                     datasets: [{
                         label: 'Amount Spent',
                         data: Object.values(byCategory),
-                        backgroundColor: Object.keys(byCategory).map(cat => CATEGORY_COLORS[cat] || '#95a5a6')
+                        backgroundColor: Object.keys(byCategory).map(cat => CATEGORY_COLORS[cat] || '#7f8c8d')
                     }]
                 },
                 options: {
@@ -939,78 +1012,8 @@
             document.getElementById('error').classList.add('hidden');
         }
 
-        // Supplier Management Functions
-        async function loadSuppliers() {
-            try {
-                const result = await window.storage.get('suppliers-list');
-                if (result && result.value) {
-                    suppliersList = JSON.parse(result.value);
-                } else {
-                    // Initialize with default supplier
-                    suppliersList = ['osbud pharmacy and stores limited'];
-                    await saveSuppliers();
-                }
-                displaySuppliers();
-            } catch (error) {
-                // No suppliers stored yet, use default
-                suppliersList = ['osbud pharmacy and stores limited'];
-                await saveSuppliers();
-                displaySuppliers();
-            }
-        }
-
-        async function saveSuppliers() {
-            try {
-                await window.storage.set('suppliers-list', JSON.stringify(suppliersList));
-            } catch (error) {
-                console.error('Error saving suppliers:', error);
-            }
-        }
-
-        function displaySuppliers() {
-            const supplierListDiv = document.getElementById('supplierList');
-            if (suppliersList.length === 0) {
-                supplierListDiv.innerHTML = '<p style="color:#666;">No suppliers added yet.</p>';
-                return;
-            }
-            
-            const html = suppliersList.map((supplier, index) => `
-                <div class="supplier-item">
-                    <span>${supplier}</span>
-                    <button onclick="removeSupplier(${index})">Remove</button>
-                </div>
-            `).join('');
-            supplierListDiv.innerHTML = html;
-        }
-
-        async function addSupplier() {
-            const input = document.getElementById('newSupplier');
-            const supplierName = input.value.trim().toLowerCase();
-            
-            if (!supplierName) {
-                showError('Please enter a supplier name');
-                return;
-            }
-            
-            if (suppliersList.includes(supplierName)) {
-                showError('This supplier already exists');
-                return;
-            }
-            
-            suppliersList.push(supplierName);
-            await saveSuppliers();
-            displaySuppliers();
-            input.value = '';
-            hideError();
-        }
-
-        async function removeSupplier(index) {
-            if (confirm('Are you sure you want to remove this supplier?')) {
-                suppliersList.splice(index, 1);
-                await saveSuppliers();
-                displaySuppliers();
-            }
-        }
-
-        // Load suppliers on page load
+        // Initialize suppliers on page load
         window.addEventListener('load', loadSuppliers);
+    </script>
+</body>
+</html>
