@@ -273,6 +273,11 @@
             color: #667eea;
             font-weight: 600;
         }
+        .breakdown-dates {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
         .transactions-section {
             margin-top: 30px;
         }
@@ -351,6 +356,46 @@
         .tab-content.active {
             display: block;
         }
+        .export-section {
+            margin-top: 20px;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .search-filter {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .search-filter input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .stats-highlight {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -414,6 +459,42 @@
                         <button class="btn btn-secondary" onclick="applyCustomDateRange()">Apply</button>
                     </div>
                 </div>
+
+                <!-- Search and Filter Section -->
+                <div class="search-filter">
+                    <input type="text" id="searchInput" placeholder="Search transactions by description, amount, or category..." onkeyup="filterTransactions()">
+                    <select id="categoryFilter" onchange="filterTransactions()">
+                        <option value="">All Categories</option>
+                    </select>
+                    <select id="amountFilter" onchange="filterTransactions()">
+                        <option value="">Any Amount</option>
+                        <option value="0-1000">₦0 - ₦1,000</option>
+                        <option value="1000-5000">₦1,000 - ₦5,000</option>
+                        <option value="5000-10000">₦5,000 - ₦10,000</option>
+                        <option value="10000-50000">₦10,000 - ₦50,000</option>
+                        <option value="50000+">₦50,000+</option>
+                    </select>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="stats-highlight">
+                    <div class="stat-item">
+                        <div class="stat-value" id="dailyAverage">₦0.00</div>
+                        <div class="stat-label">Daily Average</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="weeklyTotal">₦0.00</div>
+                        <div class="stat-label">This Week</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="monthlyTotal">₦0.00</div>
+                        <div class="stat-label">This Month</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="topCategory">-</div>
+                        <div class="stat-label">Top Category</div>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -453,6 +534,7 @@
                     <button class="tab active" onclick="switchTab('overview')">Overview</button>
                     <button class="tab" onclick="switchTab('trends')">Spending Trends</button>
                     <button class="tab" onclick="switchTab('categories')">Categories</button>
+                    <button class="tab" onclick="switchTab('export')">Export</button>
                 </div>
 
                 <div id="overview" class="tab-content active">
@@ -465,6 +547,9 @@
                     <div class="chart-container">
                         <canvas id="trendChart"></canvas>
                     </div>
+                    <div class="chart-container">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
                 </div>
 
                 <div id="categories" class="tab-content">
@@ -474,6 +559,16 @@
                     <div class="category-section">
                         <h2 style="margin-bottom:20px;">Spending by Category</h2>
                         <div id="categoriesContainer"></div>
+                    </div>
+                </div>
+
+                <div id="export" class="tab-content">
+                    <div class="export-section">
+                        <h3>Export Your Data</h3>
+                        <p style="margin-bottom: 20px; color: #666;">Download your transaction data for further analysis</p>
+                        <button class="btn" onclick="exportToCSV()">Export to CSV</button>
+                        <button class="btn btn-secondary" onclick="exportToJSON()" style="margin-left: 10px;">Export to JSON</button>
+                        <button class="btn btn-secondary" onclick="printReport()" style="margin-left: 10px;">Print Report</button>
                     </div>
                 </div>
 
@@ -504,7 +599,7 @@
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 
         const CATEGORIES = {
-            'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chowdeck', 'chow', 'chicken', 'glovo', 'mega chicken', 'chicken republic'],
+            'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chowdeck', 'glovo', 'mega chicken', 'chicken republic'],
             'Transportation': ['uber', 'bolt', 'taxi', 'transport', 'fuel', 'petrol', 'gas station', 'parking'],
             'Groceries': ['shoprite', 'spar', 'market', 'grocery', 'supermarket', 'store'],
             'Utilities': ['electricity', 'water', 'phcn', 'eko','nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
@@ -512,7 +607,7 @@
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
             'Transfer': ['transfer', 'sent to', 'payment to'],
-            'Internal Transfers': ['iloanugo chijioke francis', 'iloanugo chijioke', 'iloanugo chi', 'iloanugo c', 'iloanugo f',  'enavec','enavec pharmacy', 'enavec pharmaceutical'],
+            'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical'],
             'Supplier Payments': [],
             'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge']
         };
@@ -663,12 +758,21 @@
             filteredTransactions = [];
         }
 
-        // Fixed refresh function
+        // Enhanced refresh function
         function refreshData() {
             if (!accessToken) {
                 showError('Please connect to Gmail first');
                 return;
             }
+            
+            // Clear previous data and show loading
+            allTransactions = [];
+            filteredTransactions = [];
+            document.getElementById('resultsContainer').classList.add('hidden');
+            showLoading(true);
+            hideError();
+            
+            // Force refresh by adding timestamp to avoid cache
             fetchDebitAlerts();
         }
 
@@ -679,13 +783,18 @@
             try {
                 const query = 'subject:(debit OR debited OR transaction) -credit';
                 const response = await fetch(
-                    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=200`,
+                    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=500`, // Increased limit
                     {
                         headers: {
-                            'Authorization': `Bearer ${accessToken}`
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Cache-Control': 'no-cache' // Prevent caching
                         }
                     }
                 );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
                 const data = await response.json();
                 
@@ -696,19 +805,35 @@
                 }
 
                 const transactions = [];
-                for (const message of data.messages) {
-                    const msgResponse = await fetch(
-                        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-                        {
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`
-                            }
+                // Process messages in batches to avoid rate limiting
+                for (let i = 0; i < data.messages.length; i += 20) {
+                    const batch = data.messages.slice(i, i + 20);
+                    const batchPromises = batch.map(async (message) => {
+                        try {
+                            const msgResponse = await fetch(
+                                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+                                {
+                                    headers: {
+                                        'Authorization': `Bearer ${accessToken}`
+                                    }
+                                }
+                            );
+                            const msgData = await msgResponse.json();
+                            const transaction = parseEmailForTransaction(msgData);
+                            return transaction;
+                        } catch (error) {
+                            console.error('Error processing message:', error);
+                            return null;
                         }
-                    );
-                    const msgData = await msgResponse.json();
-                    const transaction = parseEmailForTransaction(msgData);
-                    if (transaction) {
-                        transactions.push(transaction);
+                    });
+
+                    const batchResults = await Promise.all(batchPromises);
+                    transactions.push(...batchResults.filter(t => t !== null));
+                    
+                    // Update loading progress
+                    if (data.messages.length > 20) {
+                        const progress = Math.min(100, Math.round((i + 20) / data.messages.length * 100));
+                        document.getElementById('loading').innerHTML = `<h3>Loading your transactions... ${progress}%</h3>`;
                     }
                 }
 
@@ -777,7 +902,8 @@
                 amount: amount,
                 category: category,
                 categoryKeyword: categoryKeyword,
-                fullText: fullText
+                fullText: fullText,
+                id: message.id // Add message ID for uniqueness
             };
         }
 
@@ -977,7 +1103,7 @@
             const supplierTotal = transactions.filter(t => t.category === 'Supplier Payments').reduce((sum, t) => sum + t.amount, 0);
             const chargesTotal = transactions.filter(t => t.category === 'Bank Charges').reduce((sum, t) => sum + t.amount, 0);
 
-            // Calculate category breakdowns
+            // Calculate category breakdowns with dates
             const byCategory = {};
             const categoryBreakdowns = {};
             
@@ -987,15 +1113,22 @@
                 }
                 byCategory[t.category] += t.amount;
                 
-                // Build breakdown by keyword
+                // Build breakdown by keyword with dates
                 if (!categoryBreakdowns[t.category]) {
                     categoryBreakdowns[t.category] = {};
                 }
                 if (!categoryBreakdowns[t.category][t.categoryKeyword]) {
-                    categoryBreakdowns[t.category][t.categoryKeyword] = 0;
+                    categoryBreakdowns[t.category][t.categoryKeyword] = {
+                        amount: 0,
+                        dates: []
+                    };
                 }
-                categoryBreakdowns[t.category][t.categoryKeyword] += t.amount;
+                categoryBreakdowns[t.category][t.categoryKeyword].amount += t.amount;
+                categoryBreakdowns[t.category][t.categoryKeyword].dates.push(t.date.toLocaleDateString());
             });
+
+            // Update quick stats
+            updateQuickStats(transactions, byCategory);
 
             document.getElementById('totalSpent').textContent = `₦${total.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('totalTransactions').textContent = transactions.length;
@@ -1005,6 +1138,9 @@
             document.getElementById('supplierPayments').textContent = `₦${supplierTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('bankCharges').textContent = `₦${chargesTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
+            // Update category filter options
+            updateCategoryFilter(byCategory);
+
             // Create category items with breakdown functionality
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
@@ -1012,12 +1148,22 @@
                     const breakdown = categoryBreakdowns[cat] || {};
                     const breakdownItems = Object.entries(breakdown)
                         .sort((a, b) => a[0].localeCompare(b[0])) // Sort alphabetically
-                        .map(([keyword, keywordAmount]) => `
-                            <div class="breakdown-item">
-                                <span class="breakdown-keyword">${keyword}</span>
-                                <span class="breakdown-amount">₦${keywordAmount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
-                            </div>
-                        `).join('');
+                        .map(([keyword, data]) => {
+                            const uniqueDates = [...new Set(data.dates)].sort((a, b) => new Date(a) - new Date(b));
+                            const dateText = uniqueDates.length <= 3 ? 
+                                uniqueDates.join(', ') : 
+                                `${uniqueDates.length} transactions between ${uniqueDates[0]} and ${uniqueDates[uniqueDates.length - 1]}`;
+                            
+                            return `
+                                <div class="breakdown-item">
+                                    <div>
+                                        <div class="breakdown-keyword">${keyword}</div>
+                                        <div class="breakdown-dates">${dateText}</div>
+                                    </div>
+                                    <span class="breakdown-amount">₦${data.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
+                                </div>
+                            `;
+                        }).join('');
                     
                     return `
                         <div class="category-item" onclick="toggleBreakdown(this)">
@@ -1046,6 +1192,125 @@
 
             createCharts(transactions, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
+        }
+
+        // Update quick stats
+        function updateQuickStats(transactions, byCategory) {
+            const now = new Date();
+            
+            // Daily average (last 30 days)
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const last30DaysTransactions = transactions.filter(t => t.date >= thirtyDaysAgo);
+            const last30DaysSpending = last30DaysTransactions
+                .filter(t => !['Internal Transfers', 'Supplier Payments', 'Bank Charges'].includes(t.category))
+                .reduce((sum, t) => sum + t.amount, 0);
+            const dailyAverage = last30DaysSpending / 30;
+            
+            // Weekly total
+            const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+            const weeklyTotal = transactions
+                .filter(t => t.date >= weekStart && !['Internal Transfers', 'Supplier Payments', 'Bank Charges'].includes(t.category))
+                .reduce((sum, t) => sum + t.amount, 0);
+            
+            // Monthly total
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const monthlyTotal = transactions
+                .filter(t => t.date >= monthStart && !['Internal Transfers', 'Supplier Payments', 'Bank Charges'].includes(t.category))
+                .reduce((sum, t) => sum + t.amount, 0);
+            
+            // Top category
+            const topCategory = Object.entries(byCategory)
+                .filter(([cat]) => !['Internal Transfers', 'Supplier Payments', 'Bank Charges'].includes(cat))
+                .sort((a, b) => b[1] - a[1])[0];
+            
+            document.getElementById('dailyAverage').textContent = `₦${dailyAverage.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('weeklyTotal').textContent = `₦${weeklyTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('monthlyTotal').textContent = `₦${monthlyTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('topCategory').textContent = topCategory ? topCategory[0] : '-';
+        }
+
+        // Update category filter options
+        function updateCategoryFilter(byCategory) {
+            const categoryFilter = document.getElementById('categoryFilter');
+            const currentValue = categoryFilter.value;
+            
+            categoryFilter.innerHTML = '<option value="">All Categories</option>' +
+                Object.keys(byCategory)
+                    .sort()
+                    .map(cat => `<option value="${cat}">${cat}</option>`)
+                    .join('');
+            
+            // Restore previous selection if still valid
+            if (currentValue && Object.keys(byCategory).includes(currentValue)) {
+                categoryFilter.value = currentValue;
+            }
+        }
+
+        // Filter transactions based on search and filters
+        function filterTransactions() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const amountFilter = document.getElementById('amountFilter').value;
+            
+            let filtered = allTransactions;
+            
+            // Apply date filter first
+            applyDateFilter();
+            filtered = filteredTransactions;
+            
+            // Apply search filter
+            if (searchTerm) {
+                filtered = filtered.filter(t => 
+                    t.description.toLowerCase().includes(searchTerm) ||
+                    t.category.toLowerCase().includes(searchTerm) ||
+                    t.categoryKeyword.toLowerCase().includes(searchTerm) ||
+                    t.amount.toString().includes(searchTerm)
+                );
+            }
+            
+            // Apply category filter
+            if (categoryFilter) {
+                filtered = filtered.filter(t => t.category === categoryFilter);
+            }
+            
+            // Apply amount filter
+            if (amountFilter) {
+                switch(amountFilter) {
+                    case '0-1000':
+                        filtered = filtered.filter(t => t.amount >= 0 && t.amount <= 1000);
+                        break;
+                    case '1000-5000':
+                        filtered = filtered.filter(t => t.amount > 1000 && t.amount <= 5000);
+                        break;
+                    case '5000-10000':
+                        filtered = filtered.filter(t => t.amount > 5000 && t.amount <= 10000);
+                        break;
+                    case '10000-50000':
+                        filtered = filtered.filter(t => t.amount > 10000 && t.amount <= 50000);
+                        break;
+                    case '50000+':
+                        filtered = filtered.filter(t => t.amount > 50000);
+                        break;
+                }
+            }
+            
+            // Display filtered results
+            if (filtered.length === 0) {
+                document.getElementById('transactionsContainer').innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No transactions match your filters.</p>';
+            } else {
+                const transactionsHtml = filtered
+                    .map(t => `
+                        <div class="transaction-item">
+                            <div class="transaction-details">
+                                <div class="transaction-date">${t.date.toLocaleDateString()} - ${t.category}</div>
+                                <div class="transaction-desc">${t.description}</div>
+                                <div class="transaction-category-info">Categorized based on: "${t.categoryKeyword}"</div>
+                            </div>
+                            <div class="transaction-amount">₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</div>
+                        </div>
+                    `).join('');
+                document.getElementById('transactionsContainer').innerHTML = transactionsHtml;
+            }
         }
 
         // Toggle category breakdown visibility
@@ -1125,6 +1390,45 @@
                 }
             });
 
+            // Monthly Trend Chart
+            const monthlyData = prepareMonthlyData(transactions);
+            const monthlyCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+            charts.monthlyTrendChart = new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: monthlyData.labels,
+                    datasets: [{
+                        label: 'Monthly Spending',
+                        data: monthlyData.values,
+                        backgroundColor: '#667eea',
+                        borderColor: '#5568d3',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Monthly Spending Overview',
+                            font: { size: 18 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => '₦' + value.toLocaleString()
+                            }
+                        }
+                    }
+                }
+            });
+
             // Category Bar Chart
             const barCtx = document.getElementById('categoryBarChart').getContext('2d');
             charts.categoryBarChart = new Chart(barCtx, {
@@ -1180,6 +1484,24 @@
             };
         }
 
+        function prepareMonthlyData(transactions) {
+            const monthlySpending = {};
+            
+            transactions.forEach(t => {
+                const monthKey = t.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                monthlySpending[monthKey] = (monthlySpending[monthKey] || 0) + t.amount;
+            });
+
+            const sortedMonths = Object.keys(monthlySpending).sort((a, b) => 
+                new Date(a) - new Date(b)
+            );
+
+            return {
+                labels: sortedMonths,
+                values: sortedMonths.map(month => monthlySpending[month])
+            };
+        }
+
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -1200,6 +1522,51 @@
 
         function hideError() {
             document.getElementById('error').classList.add('hidden');
+        }
+
+        // Export functions
+        function exportToCSV() {
+            const headers = ['Date', 'Description', 'Amount', 'Category', 'Keyword'];
+            const csvContent = [
+                headers.join(','),
+                ...filteredTransactions.map(t => [
+                    t.date.toLocaleDateString(),
+                    `"${t.description.replace(/"/g, '""')}"`,
+                    t.amount,
+                    t.category,
+                    `"${t.categoryKeyword}"`
+                ].join(','))
+            ].join('\n');
+
+            downloadFile(csvContent, 'transactions.csv', 'text/csv');
+        }
+
+        function exportToJSON() {
+            const jsonData = filteredTransactions.map(t => ({
+                date: t.date.toISOString(),
+                description: t.description,
+                amount: t.amount,
+                category: t.category,
+                keyword: t.categoryKeyword
+            }));
+            
+            downloadFile(JSON.stringify(jsonData, null, 2), 'transactions.json', 'application/json');
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        function downloadFile(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
 
         // Initialize suppliers on page load
