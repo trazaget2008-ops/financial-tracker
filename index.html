@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker2</title>
+    <title>Debit Alert Tracker</title>
     <style>
-        /* All existing CSS remains unchanged */
         * {
             margin: 0;
             padding: 0;
@@ -235,6 +234,11 @@
             background: #f8f9fa;
             border-radius: 8px;
             margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .category-item:hover {
+            background: #e9ecef;
         }
         .category-name {
             font-weight: 600;
@@ -244,6 +248,30 @@
             font-size: 18px;
             font-weight: bold;
             color: #667eea;
+        }
+        .category-breakdown {
+            margin-top: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .breakdown-item:last-child {
+            border-bottom: none;
+        }
+        .breakdown-keyword {
+            color: #333;
+            font-size: 14px;
+        }
+        .breakdown-amount {
+            color: #667eea;
+            font-weight: 600;
         }
         .transactions-section {
             margin-top: 30px;
@@ -354,7 +382,7 @@
             <div class="auth-section">
                 <button class="btn" id="authorizeBtn" onclick="handleAuthClick()">Connect Gmail Account</button>
                 <button class="btn" id="signoutBtn" onclick="handleSignoutClick()" style="display:none; background:#e74c3c;">Sign Out</button>
-                <button class="btn" id="refreshBtn" onclick="fetchDebitAlerts()" style="display:none; margin-left:10px;">Refresh Data</button>
+                <button class="btn" id="refreshBtn" onclick="refreshData()" style="display:none; margin-left:10px;">Refresh Data</button>
             </div>
             <div id="error" class="error hidden"></div>
             
@@ -484,7 +512,7 @@
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
             'Transfer': ['transfer', 'sent to', 'payment to'],
-            'Internal Transfers': ['iloanugo chijioke francis','iloanugo chijioke','iloanugo chi','iloanugo c', 'iloanugo f','enavec pharmacy','enavec pharm','enavec', 'enavec pharmaceutical'],
+            'Internal Transfers': ['iloanugo chijioke francis', 'iloanugo chijioke', 'iloanugo chi', 'iloanugo c', 'iloanugo f',  'enavec','enavec pharmacy', 'enavec pharmaceutical'],
             'Supplier Payments': [],
             'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge']
         };
@@ -633,6 +661,15 @@
             document.getElementById('resultsContainer').classList.add('hidden');
             allTransactions = [];
             filteredTransactions = [];
+        }
+
+        // Fixed refresh function
+        function refreshData() {
+            if (!accessToken) {
+                showError('Please connect to Gmail first');
+                return;
+            }
+            fetchDebitAlerts();
         }
 
         async function fetchDebitAlerts() {
@@ -940,12 +977,24 @@
             const supplierTotal = transactions.filter(t => t.category === 'Supplier Payments').reduce((sum, t) => sum + t.amount, 0);
             const chargesTotal = transactions.filter(t => t.category === 'Bank Charges').reduce((sum, t) => sum + t.amount, 0);
 
+            // Calculate category breakdowns
             const byCategory = {};
+            const categoryBreakdowns = {};
+            
             transactions.forEach(t => {
                 if (!byCategory[t.category]) {
                     byCategory[t.category] = 0;
                 }
                 byCategory[t.category] += t.amount;
+                
+                // Build breakdown by keyword
+                if (!categoryBreakdowns[t.category]) {
+                    categoryBreakdowns[t.category] = {};
+                }
+                if (!categoryBreakdowns[t.category][t.categoryKeyword]) {
+                    categoryBreakdowns[t.category][t.categoryKeyword] = 0;
+                }
+                categoryBreakdowns[t.category][t.categoryKeyword] += t.amount;
             });
 
             document.getElementById('totalSpent').textContent = `₦${total.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
@@ -956,14 +1005,30 @@
             document.getElementById('supplierPayments').textContent = `₦${supplierTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('bankCharges').textContent = `₦${chargesTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
+            // Create category items with breakdown functionality
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
-                .map(([cat, amount]) => `
-                    <div class="category-item">
-                        <span class="category-name">${cat}</span>
-                        <span class="category-amount">₦${amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
-                    </div>
-                `).join('');
+                .map(([cat, amount]) => {
+                    const breakdown = categoryBreakdowns[cat] || {};
+                    const breakdownItems = Object.entries(breakdown)
+                        .sort((a, b) => a[0].localeCompare(b[0])) // Sort alphabetically
+                        .map(([keyword, keywordAmount]) => `
+                            <div class="breakdown-item">
+                                <span class="breakdown-keyword">${keyword}</span>
+                                <span class="breakdown-amount">₦${keywordAmount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
+                            </div>
+                        `).join('');
+                    
+                    return `
+                        <div class="category-item" onclick="toggleBreakdown(this)">
+                            <span class="category-name">${cat}</span>
+                            <span class="category-amount">₦${amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
+                        </div>
+                        <div class="category-breakdown hidden">
+                            ${breakdownItems}
+                        </div>
+                    `;
+                }).join('');
             document.getElementById('categoriesContainer').innerHTML = categoriesHtml;
 
             const transactionsHtml = transactions
@@ -981,6 +1046,12 @@
 
             createCharts(transactions, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
+        }
+
+        // Toggle category breakdown visibility
+        function toggleBreakdown(element) {
+            const breakdown = element.nextElementSibling;
+            breakdown.classList.toggle('hidden');
         }
 
         function createCharts(transactions, byCategory) {
@@ -1136,4 +1207,3 @@
     </script>
 </body>
 </html>
-
