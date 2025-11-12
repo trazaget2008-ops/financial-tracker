@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Debit Alert Tracker</title>
     <style>
-        /* All existing CSS remains the same */
+        /* All existing CSS remains unchanged */
         * {
             margin: 0;
             padding: 0;
@@ -476,7 +476,7 @@
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 
         const CATEGORIES = {
-            'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chowdeck', 'chow', 'glovo', 'mega chicken', 'chicken republic', 'chicken'],
+            'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chowdeck', 'chow', 'chicken', 'glovo', 'mega chicken', 'chicken republic'],
             'Transportation': ['uber', 'bolt', 'taxi', 'transport', 'fuel', 'petrol', 'gas station', 'parking'],
             'Groceries': ['shoprite', 'spar', 'market', 'grocery', 'supermarket', 'store'],
             'Utilities': ['electricity', 'water', 'phcn', 'eko','nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
@@ -484,7 +484,7 @@
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
             'Transfer': ['transfer', 'sent to', 'payment to'],
-            'Internal Transfers': ['iloanugo chijioke francis', 'iloanugo c', 'iloanugo f', 'enavec pharmacy', 'enavec pharmaceutical'],
+            'Internal Transfers': ['iloanugo chijioke francis','iloanugo chijioke','iloanugo chi','iloanugo c', 'iloanugo f','enavec pharmacy','enavec pharm','enavec', 'enavec pharmaceutical'],
             'Supplier Payments': [],
             'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge']
         };
@@ -747,14 +747,7 @@
         function categorizeTransaction(text) {
             text = text.toLowerCase();
             
-            // Check Internal Transfers first
-            for (const keyword of CATEGORIES['Internal Transfers']) {
-                if (text.includes(keyword.toLowerCase())) {
-                    return 'Internal Transfers';
-                }
-            }
-            
-            // Check Supplier Payments - improved matching
+            // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
                 // Check for exact supplier name match
                 if (text.includes(supplier.toLowerCase())) {
@@ -774,6 +767,13 @@
                     if (matchCount >= 2) {
                         return 'Supplier Payments';
                     }
+                }
+            }
+            
+            // Check Internal Transfers (second priority)
+            for (const keyword of CATEGORIES['Internal Transfers']) {
+                if (text.includes(keyword.toLowerCase())) {
+                    return 'Internal Transfers';
                 }
             }
             
@@ -802,14 +802,7 @@
         function getCategoryKeyword(text) {
             text = text.toLowerCase();
             
-            // Check Internal Transfers first
-            for (const keyword of CATEGORIES['Internal Transfers']) {
-                if (text.includes(keyword.toLowerCase())) {
-                    return keyword;
-                }
-            }
-            
-            // Check Supplier Payments
+            // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
                 if (text.includes(supplier.toLowerCase())) {
                     return supplier;
@@ -829,6 +822,13 @@
                     if (matchCount >= 2) {
                         return matchedWords.join(' ');
                     }
+                }
+            }
+            
+            // Check Internal Transfers (second priority)
+            for (const keyword of CATEGORIES['Internal Transfers']) {
+                if (text.includes(keyword.toLowerCase())) {
+                    return keyword;
                 }
             }
             
@@ -1136,4 +1136,3 @@
     </script>
 </body>
 </html>
-
