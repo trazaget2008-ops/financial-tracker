@@ -386,6 +386,7 @@
                     <div class="summary-card">
                         <h3>Total Spent</h3>
                         <div class="amount" id="totalSpent">₦0.00</div>
+                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.9;">Excludes internal transfers, suppliers & charges</p>
                     </div>
                     <div class="summary-card">
                         <h3>Transactions</h3>
@@ -398,6 +399,18 @@
                     <div class="summary-card">
                         <h3>Highest Transaction</h3>
                         <div class="amount" id="highestTransaction">₦0.00</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Internal Transfers</h3>
+                        <div class="amount" id="internalTransfers">₦0.00</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Supplier Payments</h3>
+                        <div class="amount" id="supplierPayments">₦0.00</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Bank Charges</h3>
+                        <div class="amount" id="bankCharges">₦0.00</div>
                     </div>
                 </div>
 
@@ -672,9 +685,21 @@
             if (message.payload.body.data) {
                 body = atob(message.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
             } else if (message.payload.parts) {
-                const textPart = message.payload.parts.find(p => p.mimeType === 'text/plain');
-                if (textPart && textPart.body.data) {
-                    body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                // Try to get both plain text and HTML parts for more data
+                for (const part of message.payload.parts) {
+                    if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
+                        if (part.body.data) {
+                            body += ' ' + atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                        }
+                    }
+                    // Check nested parts
+                    if (part.parts) {
+                        for (const subPart of part.parts) {
+                            if ((subPart.mimeType === 'text/plain' || subPart.mimeType === 'text/html') && subPart.body.data) {
+                                body += ' ' + atob(subPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                            }
+                        }
+                    }
                 }
             }
 
@@ -821,9 +846,17 @@
                 return;
             }
 
-            const total = transactions.reduce((sum, t) => sum + t.amount, 0);
-            const avg = total / transactions.length;
-            const highest = Math.max(...transactions.map(t => t.amount));
+            // Calculate totals excluding internal transfers, supplier payments, and bank charges
+            const excludedCategories = ['Internal Transfers', 'Supplier Payments', 'Bank Charges'];
+            const spendingTransactions = transactions.filter(t => !excludedCategories.includes(t.category));
+            const total = spendingTransactions.reduce((sum, t) => sum + t.amount, 0);
+            const avg = spendingTransactions.length > 0 ? total / spendingTransactions.length : 0;
+            const highest = spendingTransactions.length > 0 ? Math.max(...spendingTransactions.map(t => t.amount)) : 0;
+
+            // Calculate separate totals for excluded categories
+            const internalTotal = transactions.filter(t => t.category === 'Internal Transfers').reduce((sum, t) => sum + t.amount, 0);
+            const supplierTotal = transactions.filter(t => t.category === 'Supplier Payments').reduce((sum, t) => sum + t.amount, 0);
+            const chargesTotal = transactions.filter(t => t.category === 'Bank Charges').reduce((sum, t) => sum + t.amount, 0);
 
             const byCategory = {};
             transactions.forEach(t => {
@@ -837,6 +870,9 @@
             document.getElementById('totalTransactions').textContent = transactions.length;
             document.getElementById('avgTransaction').textContent = `₦${avg.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
             document.getElementById('highestTransaction').textContent = `₦${highest.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('internalTransfers').textContent = `₦${internalTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('supplierPayments').textContent = `₦${supplierTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('bankCharges').textContent = `₦${chargesTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
 
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
