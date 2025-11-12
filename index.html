@@ -175,12 +175,17 @@
         }
         .category-item {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
             padding: 15px;
             background: #f8f9fa;
             border-radius: 8px;
             margin-bottom: 10px;
+        }
+        .category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
         }
         .category-name {
             font-weight: 600;
@@ -190,6 +195,16 @@
             font-size: 18px;
             font-weight: bold;
             color: #667eea;
+        }
+        .category-transactions {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+            padding-left: 10px;
+            border-left: 2px solid #e0e0e0;
+        }
+        .category-transactions div {
+            padding: 2px 0;
         }
         .transactions-section {
             margin-top: 30px;
@@ -213,12 +228,6 @@
         .transaction-desc {
             margin-top: 4px;
             color: #333;
-        }
-        .transaction-recipient {
-            font-size: 12px;
-            color: #666;
-            margin-top: 4px;
-            font-style: italic;
         }
         .transaction-amount {
             font-weight: bold;
@@ -269,6 +278,52 @@
         .tab-content.active {
             display: block;
         }
+        .supplier-management {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .supplier-management h3 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+        .supplier-list {
+            margin: 15px 0;
+        }
+        .supplier-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+        .supplier-item button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .supplier-item button:hover {
+            background: #d32f2f;
+        }
+        .add-supplier-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .add-supplier-form input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -298,10 +353,14 @@
                 <input type="text" id="clientId" placeholder="Enter your Client ID (e.g., 123456789-abcdef.apps.googleusercontent.com)">
             </div>
             
-            <div class="input-group">
-                <label for="suppliersInput">Manage Suppliers (comma-separated):</label>
-                <input type="text" id="suppliersInput" placeholder="e.g., osbud pharmacy, xyz supplies, abc stores" value="osbud pharmacy, osbud pharmacy and stores">
-                <button class="btn btn-secondary" onclick="updateSuppliers()" style="margin-top: 10px;">Update Suppliers</button>
+            <div class="supplier-management">
+                <h3>📦 Supplier Management</h3>
+                <p style="color: #2e7d32; margin-bottom: 10px;">Manage your list of suppliers for categorization:</p>
+                <div class="supplier-list" id="supplierList"></div>
+                <div class="add-supplier-form">
+                    <input type="text" id="newSupplier" placeholder="Enter supplier name (e.g., osbud pharmacy and stores limited)">
+                    <button class="btn" onclick="addSupplier()">Add Supplier</button>
+                </div>
             </div>
             
             <div class="auth-section">
@@ -334,24 +393,20 @@
             <div class="card">
                 <div class="summary-grid">
                     <div class="summary-card">
-                        <h3>Main Expenses</h3>
-                        <div class="amount" id="mainExpenses">₦0.00</div>
-                        <small style="opacity: 0.8; font-size: 12px;">Excludes suppliers & internal</small>
-                    </div>
-                    <div class="summary-card">
-                        <h3>Supplier Payments</h3>
-                        <div class="amount" id="supplierTotal">₦0.00</div>
-                        <small style="opacity: 0.8; font-size: 12px;">Payments to suppliers</small>
-                    </div>
-                    <div class="summary-card">
-                        <h3>Total Expenses</h3>
+                        <h3>Total Spent</h3>
                         <div class="amount" id="totalSpent">₦0.00</div>
-                        <small style="opacity: 0.8; font-size: 12px;">Main + Suppliers</small>
                     </div>
                     <div class="summary-card">
-                        <h3>Internal Transfers</h3>
-                        <div class="amount" id="internalTransfers">₦0.00</div>
-                        <small style="opacity: 0.8; font-size: 12px;">Within your accounts</small>
+                        <h3>Transactions</h3>
+                        <div class="amount" id="totalTransactions">0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Average Transaction</h3>
+                        <div class="amount" id="avgTransaction">₦0.00</div>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Highest Transaction</h3>
+                        <div class="amount" id="highestTransaction">₦0.00</div>
                     </div>
                 </div>
 
@@ -359,7 +414,6 @@
                     <button class="tab active" onclick="switchTab('overview')">Overview</button>
                     <button class="tab" onclick="switchTab('trends')">Spending Trends</button>
                     <button class="tab" onclick="switchTab('categories')">Categories</button>
-                    <button class="tab" onclick="switchTab('internal')">Internal Transfers</button>
                 </div>
 
                 <div id="overview" class="tab-content active">
@@ -384,16 +438,8 @@
                     </div>
                 </div>
 
-                <div id="internal" class="tab-content">
-                    <div class="category-section">
-                        <h2 style="margin-bottom:20px;">Internal Transfers</h2>
-                        <p style="color: #666; margin-bottom: 20px;">These transactions are money moving within your own accounts and are not counted as expenses.</p>
-                        <div id="internalTransactionsContainer"></div>
-                    </div>
-                </div>
-
                 <div class="transactions-section">
-                    <h2 style="margin-bottom:20px;">Recent Expense Transactions</h2>
+                    <h2 style="margin-bottom:20px;">Recent Transactions</h2>
                     <div id="transactionsContainer"></div>
                 </div>
             </div>
@@ -413,81 +459,25 @@
         let filteredTransactions = [];
         let currentFilter = 'today';
         let charts = {};
+        let suppliersList = [];
 
         const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest';
         const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
 
-        // Internal accounts/companies (NOT expenses)
-        const INTERNAL_ACCOUNTS = [
-            'enavec pharmacy',
-            'enavec pharmaceuticals',
-            'iloanugo chijioke francis',
-            'chijioke francis iloanugo',
-            'moniepoint' // Add your other internal account names here
-        ];
-
-        // Supplier keywords (these ARE expenses but tracked separately)
-        // Add your suppliers here - they will be saved permanently
-        let SUPPLIERS = [
-            'osbud pharmacy',
-            'osbud pharmacy and stores',
-            'emzor pharmaceutical',
-            'juhel pharma',
-            'mega lifesciences',
-            'fidson healthcare',
-            'swipha',
-            'drugfield pharmaceuticals',
-            'medplus',
-            'healthcare',
-            'medical supplies',
-            'neimeth international',
-            'chi pharmaceuticals',
-            'may & baker',
-            'pharma deko',
-            'swiss pharma',
-            'gsk',
-            'evans medical',
-            'zolon healthcare',
-            'dana drugs'
-            // Add more suppliers in the format: 'supplier name',
-        ];
-
         const CATEGORIES = {
-            'Suppliers': [], // Will be populated from SUPPLIERS array
-            'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chicken republic'],
+            'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chowdeck', 'glovo', 'mega chicken', 'chicken republic'],
             'Transportation': ['uber', 'bolt', 'taxi', 'transport', 'fuel', 'petrol', 'gas station', 'parking'],
             'Groceries': ['shoprite', 'spar', 'market', 'grocery', 'supermarket', 'store'],
-            'Utilities': ['electricity', 'water', 'phcn', 'nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
+            'Utilities': ['electricity', 'water', 'phcn', 'eko','nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
-            'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical']
+            'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
+            'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical'],
+            'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'sms charge', 'atm fee', 'commission', 'vat'],
+            'Transfer': ['transfer', 'sent to', 'payment to']
         };
 
-        // Load saved suppliers from browser storage
-        function loadSuppliers() {
-            const saved = localStorage.getItem('suppliers');
-            if (saved) {
-                SUPPLIERS = JSON.parse(saved);
-            }
-            CATEGORIES['Suppliers'] = SUPPLIERS;
-            updateSuppliersInput();
-        }
-
-        // Save suppliers to browser storage
-        function saveSuppliers() {
-            localStorage.setItem('suppliers', JSON.stringify(SUPPLIERS));
-        }
-
-        // Update the input field with current suppliers
-        function updateSuppliersInput() {
-            document.getElementById('suppliersInput').value = SUPPLIERS.join(', ');
-        }
-
-        // Initialize suppliers on page load
-        loadSuppliers();
-
         const CATEGORY_COLORS = {
-            'Suppliers': '#e74c3c',
             'Food & Dining': '#FF6384',
             'Transportation': '#36A2EB',
             'Groceries': '#FFCE56',
@@ -495,113 +485,12 @@
             'Entertainment': '#9966FF',
             'Shopping': '#FF9F40',
             'Healthcare': '#FF6384',
-            'Internal Transfer': '#95a5a6',
-            'Other': '#7f8c8d'
+            'Internal Transfers': '#2ecc71',
+            'Supplier Payments': '#e67e22',
+            'Bank Charges': '#e74c3c',
+            'Transfer': '#C9CBCF',
+            'Other': '#95a5a6'
         };
-
-        function updateSuppliers() {
-            const input = document.getElementById('suppliersInput').value;
-            SUPPLIERS = input.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
-            CATEGORIES['Suppliers'] = SUPPLIERS;
-            
-            // Save to browser storage
-            saveSuppliers();
-            
-            // Re-categorize existing transactions
-            if (allTransactions.length > 0) {
-                allTransactions = allTransactions.map(t => ({
-                    ...t,
-                    category: categorizeTransaction(t.fullText, t.recipientName),
-                    isInternal: isInternalTransfer(t.fullText, t.recipientName)
-                }));
-                applyDateFilter();
-            }
-            
-            alert('Suppliers saved permanently! Transactions have been re-categorized.');
-        }
-
-        function isInternalTransfer(text, recipientName = null) {
-            if (!text) return false;
-            
-            const searchText = (recipientName ? recipientName + ' ' + text : text).toLowerCase();
-            return INTERNAL_ACCOUNTS.some(account => {
-                const accountLower = account.toLowerCase();
-                // Exact match
-                if (searchText.includes(accountLower)) {
-                    return true;
-                }
-                // Partial match for company names
-                const accountWords = account.split(' ').filter(word => word.length > 3);
-                return accountWords.some(word => searchText.includes(word.toLowerCase()));
-            });
-        }
-
-        // FIXED: Check suppliers BEFORE internal transfers
-        function categorizeTransaction(text, recipientName = null) {
-            const searchText = (recipientName ? recipientName + ' ' + text : text).toLowerCase();
-            
-            // Check suppliers FIRST (before internal transfers)
-            if (isSupplierPayment(searchText, recipientName)) {
-                return 'Suppliers';
-            }
-            
-            // Then check if it's an internal transfer
-            if (isInternalTransfer(text, recipientName)) {
-                return 'Internal Transfer';
-            }
-            
-            // Then check other categories
-            for (const [category, keywords] of Object.entries(CATEGORIES)) {
-                if (category === 'Suppliers') continue; // Already handled above
-                
-                if (keywords.some(keyword => {
-                    if (recipientName && recipientName.includes(keyword.toLowerCase())) {
-                        return true;
-                    }
-                    return searchText.includes(keyword.toLowerCase());
-                })) {
-                    return category;
-                }
-            }
-            
-            return 'Other';
-        }
-
-        // FIXED: Improved supplier detection
-        function isSupplierPayment(searchText, recipientName = null) {
-            const fullSearchText = (recipientName ? recipientName + ' ' + searchText : searchText).toLowerCase();
-            
-            return SUPPLIERS.some(supplier => {
-                const supplierLower = supplier.toLowerCase();
-                
-                // Check if recipient name matches supplier exactly
-                if (recipientName && recipientName.includes(supplierLower)) {
-                    return true;
-                }
-                
-                // Check if supplier appears in the full text
-                if (fullSearchText.includes(supplierLower)) {
-                    return true;
-                }
-                
-                // Check for partial matches in recipient name
-                if (recipientName) {
-                    const supplierWords = supplierLower.split(' ').filter(word => word.length > 3);
-                    if (supplierWords.length > 0) {
-                        const matchCount = supplierWords.filter(word => 
-                            recipientName.includes(word)
-                        ).length;
-                        
-                        // If most words match, consider it a supplier
-                        if (matchCount >= Math.max(1, supplierWords.length * 0.7)) {
-                            return true;
-                        }
-                    }
-                }
-                
-                return false;
-            });
-        }
 
         function initializeGoogleAPI() {
             const clientId = document.getElementById('clientId').value.trim();
@@ -721,10 +610,9 @@
             const fullText = subject + ' ' + body;
 
             const amountPatterns = [
-                /(?:NGN|₦|N|¥)\s*([\d,]+\.?\d*)/i,
-                /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|¥)?\s*([\d,]+\.?\d*)/i,
-                /([\d,]+\.?\d*)\s*(?:NGN|₦|N|¥)/i,
-                /debit of\s*(?:NGN|₦|N|¥)?\s*([\d,]+\.?\d*)/i
+                /(?:NGN|₦|N)\s*([\d,]+\.?\d*)/i,
+                /(?:amount|amt|debited|debit).*?([\d,]+\.?\d*)/i,
+                /([\d,]+\.?\d*)\s*(?:NGN|₦|N)/i
             ];
 
             let amount = null;
@@ -738,86 +626,36 @@
 
             if (!amount) return null;
 
-            // Extract beneficiary/recipient name with multiple strategies
-            let recipientName = extractRecipientName(fullText, body);
-            
-            const category = categorizeTransaction(fullText, recipientName);
+            const category = categorizeTransaction(fullText);
 
             return {
                 date: new Date(date),
                 description: subject.substring(0, 100),
                 amount: amount,
                 category: category,
-                fullText: fullText,
-                recipientName: recipientName,
-                isInternal: category === 'Internal Transfer'
+                fullText: fullText
             };
         }
 
-        // NEW FUNCTION: Extract recipient name from email content
-        function extractRecipientName(fullText, body) {
-            // Strategy 1: Look for beneficiary/recipient patterns in tables
-            const beneficiaryPatterns = [
-                /beneficiary\s*(?:account\s*)?name[:\s]*([^\n\r<]+)/gi,
-                /recipient\s*name[:\s]*([^\n\r<]+)/gi,
-                /account\s*name[:\s]*([^\n\r<]+)/gi,
-                /to\s*:\s*([^\n\r<]+)/gi,
-                /paid\s*to\s*:\s*([^\n\r<]+)/gi,
-                /beneficiary[:\s]*([^\n\r<]+)/gi
-            ];
-
-            // Strategy 2: Look for structured table data
-            const tablePatterns = [
-                /beneficiary\s*(?:account\s*)?name\s*\|\s*([^\n\r|]+)/gi,
-                /account\s*name\s*\|\s*([^\n\r|]+)/gi,
-                /beneficiary\s*bank\s*\|[^|]+\|\s*([^\n\r|]+)/gi
-            ];
-
-            let recipientName = null;
-
-            // Try beneficiary patterns first
-            for (const pattern of beneficiaryPatterns) {
-                const match = pattern.exec(fullText);
-                if (match) {
-                    recipientName = match[1].trim();
-                    // Clean up the name
-                    recipientName = recipientName.replace(/^\|?\s*|\s*\|?$/g, '');
-                    if (recipientName && recipientName.length > 3) {
-                        return recipientName.toLowerCase();
+        function categorizeTransaction(text) {
+            text = text.toLowerCase();
+            
+            // Check supplier payments first (dynamic list)
+            if (suppliersList.length > 0) {
+                for (const supplier of suppliersList) {
+                    if (text.includes(supplier.toLowerCase())) {
+                        return 'Supplier Payments';
                     }
                 }
             }
-
-            // Try table patterns
-            for (const pattern of tablePatterns) {
-                const match = pattern.exec(fullText);
-                if (match) {
-                    recipientName = match[1].trim();
-                    recipientName = recipientName.replace(/^\|?\s*|\s*\|?$/g, '');
-                    if (recipientName && recipientName.length > 3) {
-                        return recipientName.toLowerCase();
-                    }
+            
+            // Check other categories
+            for (const [category, keywords] of Object.entries(CATEGORIES)) {
+                if (keywords.some(keyword => text.includes(keyword.toLowerCase()))) {
+                    return category;
                 }
             }
-
-            // Strategy 3: Look for common patterns in the body
-            const commonPatterns = [
-                /has\s*occurred\s*on\s*your\s*account[^.]*?([A-Z][^.!?]+(?:LTD|LIMITED|BANK|ENTERPRISE))/i,
-                /transfer\s*to\s*([A-Z][^.!?]+(?:LTD|LIMITED|BANK|ENTERPRISE))/i,
-                /paid\s*to\s*([A-Z][^.!?]+(?:LTD|LIMITED|BANK|ENTERPRISE))/i
-            ];
-
-            for (const pattern of commonPatterns) {
-                const match = fullText.match(pattern);
-                if (match && match[1]) {
-                    recipientName = match[1].trim();
-                    if (recipientName && recipientName.length > 3) {
-                        return recipientName.toLowerCase();
-                    }
-                }
-            }
-
-            return null;
+            return 'Other';
         }
 
         function setDateFilter(filter) {
@@ -894,74 +732,62 @@
                 return;
             }
 
-            // Separate transactions by type
-            const internalTransfers = transactions.filter(t => t.isInternal);
-            const supplierTransactions = transactions.filter(t => !t.isInternal && t.category === 'Suppliers');
-            const mainExpenses = transactions.filter(t => !t.isInternal && t.category !== 'Suppliers');
-            const allExpenses = transactions.filter(t => !t.isInternal); // suppliers + main
+            const total = transactions.reduce((sum, t) => sum + t.amount, 0);
+            const avg = total / transactions.length;
+            const highest = Math.max(...transactions.map(t => t.amount));
 
-            // Calculate totals
-            const internalTotal = internalTransfers.reduce((sum, t) => sum + t.amount, 0);
-            const supplierTotal = supplierTransactions.reduce((sum, t) => sum + t.amount, 0);
-            const mainTotal = mainExpenses.reduce((sum, t) => sum + t.amount, 0);
-            const expenseTotal = allExpenses.reduce((sum, t) => sum + t.amount, 0);
-
-            // Update summary cards
-            document.getElementById('mainExpenses').textContent = `₦${mainTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('supplierTotal').textContent = `₦${supplierTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('totalSpent').textContent = `₦${expenseTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-            document.getElementById('internalTransfers').textContent = `₦${internalTotal.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
-
-            // Group expenses by category (excluding internal transfers)
             const byCategory = {};
-            allExpenses.forEach(t => {
+            transactions.forEach(t => {
                 if (!byCategory[t.category]) {
                     byCategory[t.category] = 0;
                 }
                 byCategory[t.category] += t.amount;
             });
 
+            document.getElementById('totalSpent').textContent = `₦${total.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('totalTransactions').textContent = transactions.length;
+            document.getElementById('avgTransaction').textContent = `₦${avg.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+            document.getElementById('highestTransaction').textContent = `₦${highest.toLocaleString('en-NG', {minimumFractionDigits: 2})}`;
+
             const categoriesHtml = Object.entries(byCategory)
                 .sort((a, b) => b[1] - a[1])
-                .map(([cat, amount]) => `
-                    <div class="category-item">
-                        <span class="category-name">${cat}</span>
-                        <span class="category-amount">₦${amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
-                    </div>
-                `).join('');
+                .map(([cat, amount]) => {
+                    const catTransactions = transactions.filter(t => t.category === cat);
+                    const transactionsHtml = catTransactions.slice(0, 5).map(t => 
+                        `<div>• ${t.description.substring(0, 80)}... (₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})})</div>`
+                    ).join('');
+                    const moreCount = catTransactions.length > 5 ? `<div style="font-style:italic;">...and ${catTransactions.length - 5} more</div>` : '';
+                    
+                    return `
+                        <div class="category-item">
+                            <div class="category-header">
+                                <span class="category-name">${cat}</span>
+                                <span class="category-amount">₦${amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</span>
+                            </div>
+                            <div class="category-transactions">
+                                <strong>${catTransactions.length} transaction(s):</strong>
+                                ${transactionsHtml}
+                                ${moreCount}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             document.getElementById('categoriesContainer').innerHTML = categoriesHtml;
 
-            // Display expense transactions (main + suppliers, no internal)
-            const transactionsHtml = allExpenses
+            const transactionsHtml = transactions
                 .slice(0, 50)
                 .map(t => `
                     <div class="transaction-item">
                         <div class="transaction-details">
                             <div class="transaction-date">${t.date.toLocaleDateString()} - ${t.category}</div>
                             <div class="transaction-desc">${t.description}</div>
-                            ${t.recipientName ? `<div class="transaction-recipient">To: ${t.recipientName}</div>` : ''}
                         </div>
                         <div class="transaction-amount">₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</div>
                     </div>
                 `).join('');
-            document.getElementById('transactionsContainer').innerHTML = transactionsHtml || '<p style="color: #666;">No expense transactions found.</p>';
+            document.getElementById('transactionsContainer').innerHTML = transactionsHtml;
 
-            // Display internal transfers
-            const internalHtml = internalTransfers
-                .slice(0, 50)
-                .map(t => `
-                    <div class="transaction-item">
-                        <div class="transaction-details">
-                            <div class="transaction-date">${t.date.toLocaleDateString()}</div>
-                            <div class="transaction-desc">${t.description}</div>
-                            ${t.recipientName ? `<div class="transaction-recipient">To: ${t.recipientName}</div>` : ''}
-                        </div>
-                        <div class="transaction-amount" style="color: #95a5a6;">₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</div>
-                    </div>
-                `).join('');
-            document.getElementById('internalTransactionsContainer').innerHTML = internalHtml || '<p style="color: #666;">No internal transfers found.</p>';
-
-            createCharts(allExpenses, byCategory);
+            createCharts(transactions, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
         }
 
@@ -1112,6 +938,79 @@
         function hideError() {
             document.getElementById('error').classList.add('hidden');
         }
-    </script>
-</body>
-</html>
+
+        // Supplier Management Functions
+        async function loadSuppliers() {
+            try {
+                const result = await window.storage.get('suppliers-list');
+                if (result && result.value) {
+                    suppliersList = JSON.parse(result.value);
+                } else {
+                    // Initialize with default supplier
+                    suppliersList = ['osbud pharmacy and stores limited'];
+                    await saveSuppliers();
+                }
+                displaySuppliers();
+            } catch (error) {
+                // No suppliers stored yet, use default
+                suppliersList = ['osbud pharmacy and stores limited'];
+                await saveSuppliers();
+                displaySuppliers();
+            }
+        }
+
+        async function saveSuppliers() {
+            try {
+                await window.storage.set('suppliers-list', JSON.stringify(suppliersList));
+            } catch (error) {
+                console.error('Error saving suppliers:', error);
+            }
+        }
+
+        function displaySuppliers() {
+            const supplierListDiv = document.getElementById('supplierList');
+            if (suppliersList.length === 0) {
+                supplierListDiv.innerHTML = '<p style="color:#666;">No suppliers added yet.</p>';
+                return;
+            }
+            
+            const html = suppliersList.map((supplier, index) => `
+                <div class="supplier-item">
+                    <span>${supplier}</span>
+                    <button onclick="removeSupplier(${index})">Remove</button>
+                </div>
+            `).join('');
+            supplierListDiv.innerHTML = html;
+        }
+
+        async function addSupplier() {
+            const input = document.getElementById('newSupplier');
+            const supplierName = input.value.trim().toLowerCase();
+            
+            if (!supplierName) {
+                showError('Please enter a supplier name');
+                return;
+            }
+            
+            if (suppliersList.includes(supplierName)) {
+                showError('This supplier already exists');
+                return;
+            }
+            
+            suppliersList.push(supplierName);
+            await saveSuppliers();
+            displaySuppliers();
+            input.value = '';
+            hideError();
+        }
+
+        async function removeSupplier(index) {
+            if (confirm('Are you sure you want to remove this supplier?')) {
+                suppliersList.splice(index, 1);
+                await saveSuppliers();
+                displaySuppliers();
+            }
+        }
+
+        // Load suppliers on page load
+        window.addEventListener('load', loadSuppliers);
