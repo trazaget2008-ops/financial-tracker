@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker1</title>
+    <title>Debit Alert Tracker</title>
     <style>
+        /* All existing CSS remains the same */
         * {
             margin: 0;
             padding: 0;
@@ -270,6 +271,12 @@
         .transaction-amount {
             font-weight: bold;
             color: #e74c3c;
+        }
+        .transaction-category-info {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+            font-style: italic;
         }
         .loading {
             text-align: center;
@@ -552,7 +559,8 @@
             if (allTransactions.length > 0) {
                 allTransactions = allTransactions.map(t => ({
                     ...t,
-                    category: categorizeTransaction(t.fullText)
+                    category: categorizeTransaction(t.fullText),
+                    categoryKeyword: getCategoryKeyword(t.fullText)
                 }));
                 applyDateFilter();
             }
@@ -569,7 +577,8 @@
                 if (allTransactions.length > 0) {
                     allTransactions = allTransactions.map(t => ({
                         ...t,
-                        category: categorizeTransaction(t.fullText)
+                        category: categorizeTransaction(t.fullText),
+                        categoryKeyword: getCategoryKeyword(t.fullText)
                     }));
                     applyDateFilter();
                 }
@@ -723,12 +732,14 @@
             if (!amount) return null;
 
             const category = categorizeTransaction(fullText);
+            const categoryKeyword = getCategoryKeyword(fullText);
 
             return {
                 date: new Date(date),
                 description: subject.substring(0, 100),
                 amount: amount,
                 category: category,
+                categoryKeyword: categoryKeyword,
                 fullText: fullText
             };
         }
@@ -743,10 +754,26 @@
                 }
             }
             
-            // Check Supplier Payments
+            // Check Supplier Payments - improved matching
             for (const supplier of suppliers) {
+                // Check for exact supplier name match
                 if (text.includes(supplier.toLowerCase())) {
                     return 'Supplier Payments';
+                }
+                
+                // Check for partial matches (e.g., "osbud pharmacy" in "OSBUD PHARMACY AND STORES LIMITED")
+                const supplierWords = supplier.toLowerCase().split(' ');
+                if (supplierWords.length > 1) {
+                    // Check if at least 2 words from supplier name appear in the text
+                    let matchCount = 0;
+                    for (const word of supplierWords) {
+                        if (word.length > 3 && text.includes(word)) {
+                            matchCount++;
+                        }
+                    }
+                    if (matchCount >= 2) {
+                        return 'Supplier Payments';
+                    }
                 }
             }
             
@@ -770,6 +797,61 @@
             }
             
             return 'Other';
+        }
+
+        function getCategoryKeyword(text) {
+            text = text.toLowerCase();
+            
+            // Check Internal Transfers first
+            for (const keyword of CATEGORIES['Internal Transfers']) {
+                if (text.includes(keyword.toLowerCase())) {
+                    return keyword;
+                }
+            }
+            
+            // Check Supplier Payments
+            for (const supplier of suppliers) {
+                if (text.includes(supplier.toLowerCase())) {
+                    return supplier;
+                }
+                
+                // Check for partial matches
+                const supplierWords = supplier.toLowerCase().split(' ');
+                if (supplierWords.length > 1) {
+                    let matchCount = 0;
+                    let matchedWords = [];
+                    for (const word of supplierWords) {
+                        if (word.length > 3 && text.includes(word)) {
+                            matchCount++;
+                            matchedWords.push(word);
+                        }
+                    }
+                    if (matchCount >= 2) {
+                        return matchedWords.join(' ');
+                    }
+                }
+            }
+            
+            // Check Bank Charges
+            for (const keyword of CATEGORIES['Bank Charges']) {
+                if (text.includes(keyword.toLowerCase())) {
+                    return keyword;
+                }
+            }
+            
+            // Check other categories
+            for (const [category, keywords] of Object.entries(CATEGORIES)) {
+                if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
+                    continue;
+                }
+                for (const keyword of keywords) {
+                    if (text.includes(keyword.toLowerCase())) {
+                        return keyword;
+                    }
+                }
+            }
+            
+            return 'No specific keyword matched';
         }
 
         function setDateFilter(filter) {
@@ -890,6 +972,7 @@
                         <div class="transaction-details">
                             <div class="transaction-date">${t.date.toLocaleDateString()} - ${t.category}</div>
                             <div class="transaction-desc">${t.description}</div>
+                            <div class="transaction-category-info">Categorized based on: "${t.categoryKeyword}"</div>
                         </div>
                         <div class="transaction-amount">₦${t.amount.toLocaleString('en-NG', {minimumFractionDigits: 2})}</div>
                     </div>
@@ -1053,4 +1136,3 @@
     </script>
 </body>
 </html>
-
