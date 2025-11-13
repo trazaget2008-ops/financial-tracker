@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker3</title>
+    <title>Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -190,6 +190,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
         .custom-date-inputs input {
             padding: 10px;
@@ -331,6 +332,7 @@
             gap: 5px;
             margin-bottom: 20px;
             border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
         }
         .tab {
             padding: 12px 24px;
@@ -368,9 +370,11 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
-        .search-filter input {
+        .search-filter input, .search-filter select {
             flex: 1;
+            min-width: 150px;
             padding: 10px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
@@ -383,9 +387,12 @@
             padding: 15px;
             background: #f8f9fa;
             border-radius: 10px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         .stat-item {
             text-align: center;
+            min-width: 120px;
         }
         .stat-value {
             font-size: 24px;
@@ -395,6 +402,143 @@
         .stat-label {
             font-size: 12px;
             color: #666;
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .btn {
+                padding: 10px 20px;
+                font-size: 14px;
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            
+            .auth-section {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .summary-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .summary-card .amount {
+                font-size: 24px;
+            }
+            
+            .chart-container {
+                height: 300px;
+                margin: 20px 0;
+            }
+            
+            .date-filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .date-filter-btn {
+                text-align: center;
+            }
+            
+            .custom-date-inputs {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-filter {
+                flex-direction: column;
+            }
+            
+            .search-filter input, .search-filter select {
+                width: 100%;
+            }
+            
+            .transaction-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .transaction-amount {
+                align-self: flex-end;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                text-align: center;
+                border-bottom: none;
+                border-left: 3px solid transparent;
+            }
+            
+            .tab.active {
+                border-bottom-color: transparent;
+                border-left-color: #667eea;
+            }
+            
+            .supplier-management {
+                padding: 15px;
+            }
+            
+            .add-supplier-form {
+                flex-direction: column;
+            }
+            
+            .stats-highlight {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .stat-item {
+                min-width: auto;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+            
+            .summary-card {
+                padding: 20px;
+            }
+            
+            .summary-card .amount {
+                font-size: 20px;
+            }
+            
+            .chart-container {
+                height: 250px;
+            }
+            
+            .category-item, .transaction-item {
+                padding: 10px;
+            }
+            
+            .breakdown-item {
+                flex-direction: column;
+                gap: 5px;
+            }
         }
     </style>
 </head>
@@ -601,7 +745,7 @@
         const CATEGORIES = {
             'Food & Dining': ['restaurant', 'food', 'cafe', 'pizza', 'burger', 'kfc', 'dominos', 'bakery', 'shawarma', 'chowdeck', 'glovo', 'mega chicken', 'chicken republic'],
             'Transportation': ['uber', 'bolt', 'taxi', 'transport', 'fuel', 'petrol', 'gas station', 'parking'],
-            'Groceries': ['shoprite', 'spar', 'market', 'grocery', 'supermarket','stores'],
+            'Groceries': ['shoprite', 'spar', 'market', 'grocery', 'supermarket', 'store'],
             'Utilities': ['electricity', 'water', 'phcn', 'eko','nepa', 'dstv', 'gotv', 'startimes', 'internet', 'airtel', 'mtn', 'glo', '9mobile'],
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
@@ -876,25 +1020,42 @@
 
             const fullText = subject + ' ' + body;
 
+            // IMPROVED AMOUNT EXTRACTION - Prioritize debit amounts over account balances
             const amountPatterns = [
-                /(?:NGN|₦|N)\s*([\d,]+\.?\d*)/i,
-                /(?:amount|amt|debited|debit).*?([\d,]+\.?\d*)/i,
-                /([\d,]+\.?\d*)\s*(?:NGN|₦|N)/i
+                // Look for debit amounts specifically
+                /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
+                // General amount patterns (fallback)
+                /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)/i,
+                /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                /([\d,]+\.?\d*)\s*(?:NGN|₦|N|\\$)/i
             ];
 
             let amount = null;
             for (const pattern of amountPatterns) {
                 const match = fullText.match(pattern);
                 if (match) {
-                    amount = parseFloat(match[1].replace(/,/g, ''));
-                    if (amount > 0) break;
+                    const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
+                    // Additional validation: exclude very small amounts and account balances
+                    if (potentialAmount > 1 && potentialAmount < 100000000) { // Reasonable transaction range
+                        // Check if this might be an account balance (often appears with "balance" or "account")
+                        const context = fullText.toLowerCase();
+                        const isLikelyBalance = context.includes('balance') && 
+                                              (context.indexOf('balance') < context.indexOf(match[0]) + 50);
+                        
+                        if (!isLikelyBalance) {
+                            amount = potentialAmount;
+                            break;
+                        }
+                    }
                 }
             }
 
             if (!amount) return null;
 
             const category = categorizeTransaction(fullText);
-            const categoryKeyword = getCategoryKeyword(fullText);
+            const categoryKeyword = getCategoryKeyword(fullText, category);
 
             return {
                 date: new Date(date),
@@ -962,7 +1123,7 @@
             return 'Other';
         }
 
-        function getCategoryKeyword(text) {
+        function getCategoryKeyword(text, category) {
             text = text.toLowerCase();
             
             // Check Supplier Payments first (highest priority)
@@ -1003,14 +1164,43 @@
             }
             
             // Check other categories
-            for (const [category, keywords] of Object.entries(CATEGORIES)) {
-                if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
+            for (const [cat, keywords] of Object.entries(CATEGORIES)) {
+                if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges') {
                     continue;
                 }
                 for (const keyword of keywords) {
                     if (text.includes(keyword.toLowerCase())) {
                         return keyword;
                     }
+                }
+            }
+            
+            // ENHANCED: For "Other" category, try to extract beneficiary name or key details
+            if (category === 'Other') {
+                // Try to extract beneficiary name from common patterns
+                const beneficiaryPatterns = [
+                    /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
+                    /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
+                    /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/, // Three word names
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/ // Two word names
+                ];
+                
+                for (const pattern of beneficiaryPatterns) {
+                    const match = text.match(pattern);
+                    if (match && match[1]) {
+                        const potentialName = match[1].trim();
+                        // Validate it's a reasonable name (not too short, not common words)
+                        if (potentialName.length > 5 && !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account)/i)) {
+                            return `Potential: ${potentialName}`;
+                        }
+                    }
+                }
+                
+                // If no beneficiary found, return key part of description
+                const words = text.split(/\s+/).filter(word => word.length > 4);
+                if (words.length > 0) {
+                    return `Key terms: ${words.slice(0, 3).join(', ')}`;
                 }
             }
             
@@ -1574,5 +1764,3 @@
     </script>
 </body>
 </html>
-
-
