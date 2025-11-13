@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker2</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -545,7 +545,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💳 Debit Alert Tracker</h1>
+            <h1>💳 Enhanced Debit Alert Tracker</h1>
             <p>Automatically analyze your spending from Gmail debit alerts</p>
         </div>
 
@@ -750,9 +750,9 @@
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
-            'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical', 'chijioke francis iloanugo'],
+            'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical'],
             'Supplier Payments': [],
-            'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge', 'electronic money transfer levy', 'cbn_emt_levy']
+            'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge']
         };
 
         const CATEGORY_COLORS = {
@@ -1019,55 +1019,97 @@
 
             const fullText = subject + ' ' + body;
 
-            // IMPROVED AMOUNT EXTRACTION - Better handling of multiple amounts and small transactions
-            const amountPatterns = [
-                // Look for debit amounts specifically with context
-                /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
-                /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
-                /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
-                // Carbon-specific patterns
-                /debit\s*transaction\s*of\s*([\d,]+\.?\d*)/i,
-                /a\s*debit\s*of\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
-                // General amount patterns (fallback)
-                /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)/i
-            ];
-
+            // ENHANCED AMOUNT EXTRACTION - Handle specific bank formats
             let amount = null;
-            let bestMatch = null;
-
-            for (const pattern of amountPatterns) {
-                const matches = [...fullText.matchAll(new RegExp(pattern, 'gi'))];
-                for (const match of matches) {
-                    const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
+            
+            // 1. CARBON BANK - Handle "Debit: X,XXX.XX NGN" pattern
+            const carbonPattern = /Debit:\s*([\d,]+\.?\d*)\s*NGN/i;
+            const carbonMatch = fullText.match(carbonPattern);
+            if (carbonMatch) {
+                amount = parseFloat(carbonMatch[1].replace(/,/g, ''));
+            }
+            
+            // 2. MONIEPOINT - Handle "Debit Amount X,XXX.XX" and avoid account balance
+            if (!amount) {
+                const moniepointPattern = /Debit Amount\s*([\d,]+\.?\d*)/i;
+                const moniepointMatch = fullText.match(moniepointPattern);
+                if (moniepointMatch) {
+                    // Additional check to avoid picking account balance
+                    const balancePattern = /Account Balance:\s*N?\s*([\d,]+\.?\d*)/i;
+                    const balanceMatch = fullText.match(balancePattern);
                     
-                    // More permissive amount validation to capture small amounts like 50 Naira
-                    if (potentialAmount > 0.01 && potentialAmount < 100000000) {
-                        const context = fullText.toLowerCase();
-                        const matchText = match[0].toLowerCase();
-                        
-                        // Check if this might be an account balance or reference amount
-                        const isLikelyBalance = (
-                            (context.includes('balance') && context.indexOf('balance') < context.indexOf(match[0]) + 100) ||
-                            (context.includes('available balance') && context.includes(matchText)) ||
-                            (context.includes('for the amount of') && !context.includes('debit'))
-                        );
-                        
-                        // Prioritize amounts that appear near "debit" keywords
-                        const isDebitRelated = (
-                            matchText.includes('debit') ||
-                            context.indexOf('debit') < context.indexOf(match[0]) + 50
-                        );
-                        
-                        if (!isLikelyBalance && (isDebitRelated || !bestMatch)) {
-                            amount = potentialAmount;
-                            bestMatch = match;
-                            // If it's clearly debit-related, use it immediately
-                            if (isDebitRelated) break;
+                    // Only proceed if we found a debit amount and it's different from balance
+                    if (!balanceMatch || moniepointMatch[1] !== balanceMatch[1]) {
+                        amount = parseFloat(moniepointMatch[1].replace(/,/g, ''));
+                    }
+                }
+            }
+            
+            // 3. VPAY - Handle "a debit of X,XXX.XX" pattern and extract beneficiary
+            if (!amount) {
+                const vpayPattern = /debit\s+of\s+([\d,]+\.?\d*)/i;
+                const vpayMatch = fullText.match(vpayPattern);
+                if (vpayMatch) {
+                    amount = parseFloat(vpayMatch[1].replace(/,/g, ''));
+                    
+                    // Extract beneficiary information for VPay
+                    const beneficiaryPatterns = [
+                        /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                        /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                        /To:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Recipient:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i
+                    ];
+                    
+                    for (const pattern of beneficiaryPatterns) {
+                        const beneficiaryMatch = fullText.match(pattern);
+                        if (beneficiaryMatch) {
+                            // Store beneficiary info in the description for better categorization
+                            subject += ` - Beneficiary: ${beneficiaryMatch[1].trim()}`;
+                            break;
                         }
                     }
                 }
-                if (amount && bestMatch && bestMatch[0].toLowerCase().includes('debit')) {
-                    break;
+            }
+
+            // 4. PAYSTACK - Handle payment amounts
+            if (!amount) {
+                const paystackPattern = /payment of\s*NGN\s*([\d,]+\.?\d*)/i;
+                const paystackMatch = fullText.match(paystackPattern);
+                if (paystackMatch) {
+                    amount = parseFloat(paystackMatch[1].replace(/,/g, ''));
+                }
+            }
+
+            // 5. FALLBACK - Use original patterns if specific patterns didn't match
+            if (!amount) {
+                const amountPatterns = [
+                    // Look for debit amounts specifically
+                    /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                    /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                    /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
+                    // General amount patterns (fallback)
+                    /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)/i,
+                    /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                    /([\d,]+\.?\d*)\s*(?:NGN|₦|N|\\$)/i
+                ];
+
+                for (const pattern of amountPatterns) {
+                    const match = fullText.match(pattern);
+                    if (match) {
+                        const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
+                        // Additional validation: exclude very small amounts and account balances
+                        if (potentialAmount > 1 && potentialAmount < 100000000) { // Reasonable transaction range
+                            // Check if this might be an account balance (often appears with "balance" or "account")
+                            const context = fullText.toLowerCase();
+                            const isLikelyBalance = context.includes('balance') && 
+                                                  (context.indexOf('balance') < context.indexOf(match[0]) + 50);
+                            
+                            if (!isLikelyBalance) {
+                                amount = potentialAmount;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1092,27 +1134,22 @@
             
             // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
-                const supplierLower = supplier.toLowerCase();
-                
-                // Exact match
-                if (text.includes(supplierLower)) {
+                // Check for exact supplier name match
+                if (text.includes(supplier.toLowerCase())) {
                     return 'Supplier Payments';
                 }
                 
-                // Improved partial matching
-                const supplierWords = supplierLower.split(/\s+/).filter(word => word.length > 3);
+                // Check for partial matches (e.g., "osbud pharmacy" in "OSBUD PHARMACY AND STORES LIMITED")
+                const supplierWords = supplier.toLowerCase().split(' ');
                 if (supplierWords.length > 1) {
+                    // Check if at least 2 words from supplier name appear in the text
                     let matchCount = 0;
                     for (const word of supplierWords) {
-                        // Use word boundaries for better matching
-                        const wordRegex = new RegExp(`\\b${word}\\b`, 'i');
-                        if (wordRegex.test(text)) {
+                        if (word.length > 3 && text.includes(word)) {
                             matchCount++;
                         }
                     }
-                    // Require at least 60% of key words to match
-                    const requiredMatches = Math.ceil(supplierWords.length * 0.6);
-                    if (matchCount >= requiredMatches) {
+                    if (matchCount >= 2) {
                         return 'Supplier Payments';
                     }
                 }
@@ -1173,9 +1210,24 @@
                 }
             }
             
-            // Check Internal Transfers (second priority)
+            // Check Internal Transfers (second priority) - ENHANCED to catch beneficiary names
             for (const keyword of CATEGORIES['Internal Transfers']) {
                 if (text.includes(keyword.toLowerCase())) {
+                    // Try to extract beneficiary name for better categorization
+                    const beneficiaryPatterns = [
+                        /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                        /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                        /To:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Transfer to\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Recipient:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i
+                    ];
+                    
+                    for (const pattern of beneficiaryPatterns) {
+                        const match = text.match(pattern);
+                        if (match && match[1]) {
+                            return `${keyword} - ${match[1].trim()}`;
+                        }
+                    }
                     return keyword;
                 }
             }
@@ -1201,42 +1253,32 @@
             
             // ENHANCED: For "Other" category, try to extract beneficiary name or key details
             if (category === 'Other') {
-                // IMPROVED: Better beneficiary name extraction
+                // Try to extract beneficiary name from common patterns
                 const beneficiaryPatterns = [
-                    /(?:to|for|beneficiary|recipient|account name)[:\s]*([A-Z][A-Za-z\s]{5,40}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd|chinedu|victor|ejim))/i,
-                    /(?:beneficiary account name|account name)[:\s]*([A-Z][A-Za-z\s]{5,40})/i,
-                    /(?:transfer|sent|payment)\s+to\s+([A-Z][A-Za-z\s]{5,40})/i,
-                    /(?:narration|description|details)[:\s]*([A-Za-z0-9\s.,]{10,100})/i,
+                    /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
+                    /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
+                    /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
+                    /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                    /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
                     /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/, // Three word names
-                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/, // Two word names
-                    /(?:paid to|received by)[:\s]*([A-Za-z\s]{5,50})/i
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/ // Two word names
                 ];
                 
                 for (const pattern of beneficiaryPatterns) {
                     const match = text.match(pattern);
                     if (match && match[1]) {
                         const potentialName = match[1].trim();
-                        // More permissive validation for names
-                        const commonWords = ['debit', 'credit', 'balance', 'transaction', 'bank', 'account', 'alert', 'amount', 'paid', 'received', 'transfer'];
-                        const isCommonWord = commonWords.some(word => 
-                            potentialName.toLowerCase().includes(word.toLowerCase())
-                        );
-                        
-                        if (potentialName.length > 5 && !isCommonWord) {
-                            return `Beneficiary: ${potentialName}`;
+                        // Validate it's a reasonable name (not too short, not common words)
+                        if (potentialName.length > 5 && !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account)/i)) {
+                            return `Potential: ${potentialName}`;
                         }
                     }
                 }
                 
-                // If no beneficiary found, return meaningful key terms excluding common words
-                const commonWords = ['debit', 'alert', 'transaction', 'account', 'bank', 'carbon', 'chijioke', 'francis', 'loanugo'];
-                const words = text.split(/\s+/)
-                    .filter(word => word.length > 4)
-                    .filter(word => !commonWords.includes(word.toLowerCase()))
-                    .slice(0, 3);
-                    
+                // If no beneficiary found, return key part of description
+                const words = text.split(/\s+/).filter(word => word.length > 4);
                 if (words.length > 0) {
-                    return `Key terms: ${words.join(', ')}`;
+                    return `Key terms: ${words.slice(0, 3).join(', ')}`;
                 }
             }
             
