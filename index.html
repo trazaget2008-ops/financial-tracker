@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Debit Alert Tracker</title>
+    <title>Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -1041,6 +1041,14 @@
                     // Only proceed if we found a debit amount and it's different from balance
                     if (!balanceMatch || moniepointMatch[1] !== balanceMatch[1]) {
                         amount = parseFloat(moniepointMatch[1].replace(/,/g, ''));
+                        
+                        // Extract beneficiary information for Moniepoint TRANSFER TO
+                        const transferPattern = /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i;
+                        const transferMatch = fullText.match(transferPattern);
+                        if (transferMatch) {
+                            // Store beneficiary info in the description for better categorization
+                            subject += ` - Beneficiary: ${transferMatch[1].trim()}`;
+                        }
                     }
                 }
             }
@@ -1153,6 +1161,18 @@
                         return 'Supplier Payments';
                     }
                 }
+                
+                // Also check for single word supplier matches if the word is distinctive
+                const distinctiveSupplierWords = supplierWords.filter(word => 
+                    word.length > 5 && 
+                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
+                );
+                
+                for (const word of distinctiveSupplierWords) {
+                    if (text.includes(word)) {
+                        return 'Supplier Payments';
+                    }
+                }
             }
             
             // Check Internal Transfers (second priority)
@@ -1169,12 +1189,13 @@
                 }
             }
             
-            // Check other categories
+            // Check other categories - USE FLEXIBLE MATCHING
             for (const [category, keywords] of Object.entries(CATEGORIES)) {
                 if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
                     continue;
                 }
                 for (const keyword of keywords) {
+                    // Use flexible matching (no word boundaries)
                     if (text.includes(keyword.toLowerCase())) {
                         return category;
                     }
@@ -1208,6 +1229,18 @@
                         return matchedWords.join(' ');
                     }
                 }
+                
+                // Check for distinctive single word matches
+                const distinctiveSupplierWords = supplierWords.filter(word => 
+                    word.length > 5 && 
+                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
+                );
+                
+                for (const word of distinctiveSupplierWords) {
+                    if (text.includes(word)) {
+                        return word;
+                    }
+                }
             }
             
             // Check Internal Transfers (second priority) - ENHANCED to catch beneficiary names
@@ -1239,12 +1272,13 @@
                 }
             }
             
-            // Check other categories
+            // Check other categories - USE FLEXIBLE MATCHING
             for (const [cat, keywords] of Object.entries(CATEGORIES)) {
                 if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges') {
                     continue;
                 }
                 for (const keyword of keywords) {
+                    // Use flexible matching (no word boundaries)
                     if (text.includes(keyword.toLowerCase())) {
                         return keyword;
                     }
@@ -1253,13 +1287,17 @@
             
             // ENHANCED: For "Other" category, try to extract beneficiary name or key details
             if (category === 'Other') {
-                // Try to extract beneficiary name from common patterns
+                // Try to extract beneficiary name from common patterns - ENHANCED FOR MONIEPOINT
                 const beneficiaryPatterns = [
+                    /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /Transfer to\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /To:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /Beneficiary:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Bank|$)))/i,
+                    /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                    /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
                     /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
                     /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
                     /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
-                    /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                    /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
                     /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/, // Three word names
                     /([A-Z][a-z]+\s+[A-Z][a-z]+)/ // Two word names
                 ];
@@ -1269,16 +1307,24 @@
                     if (match && match[1]) {
                         const potentialName = match[1].trim();
                         // Validate it's a reasonable name (not too short, not common words)
-                        if (potentialName.length > 5 && !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account)/i)) {
+                        if (potentialName.length > 5 && 
+                            !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration)/i) &&
+                            potentialName.split(' ').length >= 2) { // At least 2 words for a name
                             return `Potential: ${potentialName}`;
                         }
                     }
                 }
                 
                 // If no beneficiary found, return key part of description
-                const words = text.split(/\s+/).filter(word => word.length > 4);
+                const words = text.split(/\s+/)
+                    .filter(word => 
+                        word.length > 4 && 
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from)/i)
+                    )
+                    .slice(0, 3);
+                    
                 if (words.length > 0) {
-                    return `Key terms: ${words.slice(0, 3).join(', ')}`;
+                    return `Key terms: ${words.join(', ')}`;
                 }
             }
             
