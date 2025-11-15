@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -1361,23 +1361,25 @@
             
             // ENHANCED: For "Other" category, try to extract beneficiary name or key details
             if (category === 'Other') {
-                // Try to extract beneficiary name from common patterns - ENHANCED FOR MONIEPOINT
+                // NEW: Enhanced patterns specifically for full names like "EJIM VICTOR CHINEDU"
                 const beneficiaryPatterns = [
-                    /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-                    /Transfer to\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-                    /To:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-                    /Beneficiary:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Bank|$)))/i,
-                    /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                    /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                    /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
-                    /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
-                    /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
-                    /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/, // Three word names
-                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/, // Two word names
-                    // NEW: Enhanced patterns for better name extraction
-                    /(?:TRANSFER TO|TO|BENEFICIARY|RECIPIENT)[:\s]*([A-Z][A-Za-z\s]{5,40}(?=\s|$|\n))/i,
-                    /(?:Name|NAME)[:\s]*([A-Z][A-Za-z\s]{5,40}(?=\s|$|\n))/i,
-                    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/g // Multiple word names (improved)
+                    // Pattern for uppercase full names (most common in bank alerts)
+                    /([A-Z]{2,}\s+[A-Z]{2,}\s+[A-Z]{2,})/,
+                    /([A-Z]{2,}\s+[A-Z]{2,})/,
+                    // Pattern for mixed case full names
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/,
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/,
+                    // Bank-specific patterns
+                    /TRANSFER TO\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
+                    /TO:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
+                    /BENEFICIARY:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
+                    /RECIPIENT:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
+                    /NAME:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
+                    /Beneficiary Name\s+([A-Za-z\s]{5,50}(?=\s|$|\.|,))/i,
+                    /Beneficiary Account Name\s+([A-Za-z\s]{5,50}(?=\s|$|\.|,))/i,
+                    // Generic patterns for any potential name-like structure
+                    /(?:to|for|transfer|sent|payment)\s+(?:to|for)?\s*([A-Z][A-Za-z\s]{4,40}(?=\s|$|\.|,|;))/i,
+                    /(?:name|recipient|beneficiary)[:\s]*([A-Z][A-Za-z\s]{4,40}(?=\s|$|\.|,|;))/i
                 ];
                 
                 let bestMatch = null;
@@ -1386,12 +1388,15 @@
                 for (const pattern of beneficiaryPatterns) {
                     const matches = text.match(pattern);
                     if (matches && matches[1]) {
-                        const potentialName = cleanText(matches[1].trim());
+                        let potentialName = cleanText(matches[1].trim());
                         
-                        // Validate it's a reasonable name (not too short, not common words)
-                        if (potentialName.length > 5 && 
-                            !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration|transfer|to|from|â¦)/i) &&
-                            potentialName.split(' ').length >= 2 && // At least 2 words for a name
+                        // Clean up the name - remove extra spaces and unwanted characters
+                        potentialName = potentialName.replace(/\s+/g, ' ').replace(/[^\w\s]/g, '').trim();
+                        
+                        // Validate it's a reasonable name (not common financial terms, has proper structure)
+                        if (potentialName.length >= 6 && 
+                            !isCommonFinancialTerm(potentialName) &&
+                            hasNameLikeStructure(potentialName) &&
                             potentialName.length > bestMatchLength) {
                             
                             bestMatch = potentialName;
@@ -1404,11 +1409,17 @@
                     return `Potential: ${bestMatch}`;
                 }
                 
-                // If no beneficiary found, return key part of description (CLEANED)
+                // If no beneficiary found, try to extract any capitalized multi-word phrases that look like names
+                const nameLikePhrases = extractNameLikePhrases(text);
+                if (nameLikePhrases.length > 0) {
+                    return `Potential: ${nameLikePhrases[0]}`;
+                }
+                
+                // Final fallback - return key part of description (CLEANED)
                 const words = cleanText(text).split(/\s+/)
                     .filter(word => 
                         word.length > 4 && 
-                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦)/i)
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦|has|occurred|ngn|₦)/i)
                     )
                     .slice(0, 3);
                     
@@ -1418,6 +1429,87 @@
             }
             
             return 'No specific keyword matched';
+        }
+
+        // NEW: Helper function to check if text contains common financial terms
+        function isCommonFinancialTerm(text) {
+            const financialTerms = [
+                'debit', 'credit', 'balance', 'transaction', 'amount', 'account',
+                'bank', 'transfer', 'payment', 'alert', 'narration', 'date',
+                'time', 'reference', 'id', 'number', 'customer', 'branch',
+                'debit alert', 'transaction alert', 'account balance'
+            ];
+            
+            const lowerText = text.toLowerCase();
+            return financialTerms.some(term => lowerText.includes(term));
+        }
+
+        // NEW: Helper function to check if text has name-like structure
+        function hasNameLikeStructure(text) {
+            // Should have at least 2 words
+            const words = text.split(/\s+/);
+            if (words.length < 2) return false;
+            
+            // Each word should be at least 2 characters
+            if (words.some(word => word.length < 2)) return false;
+            
+            // Should not be all uppercase single letters (like "A B C")
+            if (words.every(word => word.length === 1 && word === word.toUpperCase())) return false;
+            
+            // Should contain mostly alphabetic characters
+            const alphaRatio = text.replace(/[^A-Za-z]/g, '').length / text.length;
+            if (alphaRatio < 0.7) return false;
+            
+            return true;
+        }
+
+        // NEW: Helper function to extract name-like phrases from text
+        function extractNameLikePhrases(text) {
+            const phrases = [];
+            
+            // Look for sequences of capitalized words
+            const capitalizedWordPattern = /[A-Z][a-z]+/g;
+            const words = text.match(capitalizedWordPattern) || [];
+            
+            // Group consecutive capitalized words as potential names
+            let currentPhrase = [];
+            for (let i = 0; i < words.length; i++) {
+                if (words[i].length >= 3) { // Only consider words with 3+ letters
+                    currentPhrase.push(words[i]);
+                    
+                    // If next word doesn't exist or is short, consider this a complete phrase
+                    if (i === words.length - 1 || words[i + 1].length < 3) {
+                        if (currentPhrase.length >= 2) {
+                            const phrase = currentPhrase.join(' ');
+                            if (hasNameLikeStructure(phrase) && !isCommonFinancialTerm(phrase)) {
+                                phrases.push(phrase);
+                            }
+                        }
+                        currentPhrase = [];
+                    }
+                } else {
+                    if (currentPhrase.length >= 2) {
+                        const phrase = currentPhrase.join(' ');
+                        if (hasNameLikeStructure(phrase) && !isCommonFinancialTerm(phrase)) {
+                            phrases.push(phrase);
+                        }
+                    }
+                    currentPhrase = [];
+                }
+            }
+            
+            // Also look for all-uppercase multi-word sequences (common in bank alerts)
+            const uppercasePattern = /[A-Z]{2,}(?:\s+[A-Z]{2,})+/g;
+            const uppercaseMatches = text.match(uppercasePattern) || [];
+            
+            for (const match of uppercaseMatches) {
+                if (hasNameLikeStructure(match) && !isCommonFinancialTerm(match)) {
+                    phrases.push(match);
+                }
+            }
+            
+            // Sort by length (longer phrases are more likely to be actual names)
+            return phrases.sort((a, b) => b.length - a.length);
         }
 
         function setDateFilter(filter) {
@@ -1977,4 +2069,3 @@
     </script>
 </body>
 </html>
-
