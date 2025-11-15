@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Debit Alert Tracker</title>
+    <title>Enhanced Debit Alert Tracker111</title>
     <style>
         * {
             margin: 0;
@@ -1308,46 +1308,88 @@
             return 'No specific keyword matched';
         }
 
-        // NEW: Consistent name detection using same logic as supplier detection
+        // NEW: Uses the EXACT SAME logic as supplier detection
         function extractPotentialNames(text) {
             const potentialNames = [];
             
-            // Look for multi-word uppercase sequences (like "EJIM VICTOR CHINEDU")
+            // METHOD 1: Extract names using the SAME word-matching logic as suppliers
             const words = text.split(/\s+/);
             
-            // Find sequences of 2-4 consecutive uppercase words
-            let currentSequence = [];
-            for (let i = 0; i < words.length; i++) {
-                const word = words[i];
-                
-                // Check if word looks like a name part (uppercase, 2+ chars, alphabetic)
-                if (word === word.toUpperCase() && 
-                    word.length >= 2 && 
-                    /^[A-Z]+$/.test(word) &&
-                    !isCommonFinancialTerm(word)) {
-                    
-                    currentSequence.push(word);
-                } else {
-                    // End of sequence, check if we have a potential name
-                    if (currentSequence.length >= 2 && currentSequence.length <= 4) {
-                        const potentialName = currentSequence.join(' ');
-                        if (hasNameLikeStructure(potentialName)) {
-                            potentialNames.push(potentialName);
-                        }
+            // Find sequences of words that look like names (2-4 words, proper format)
+            for (let i = 0; i < words.length - 1; i++) {
+                // Check for 2-word names
+                if (i <= words.length - 2) {
+                    const twoWordName = `${words[i]} ${words[i+1]}`;
+                    if (isValidPotentialName(twoWordName)) {
+                        potentialNames.push(twoWordName);
                     }
-                    currentSequence = [];
+                }
+                
+                // Check for 3-word names  
+                if (i <= words.length - 3) {
+                    const threeWordName = `${words[i]} ${words[i+1]} ${words[i+2]}`;
+                    if (isValidPotentialName(threeWordName)) {
+                        potentialNames.push(threeWordName);
+                    }
+                }
+                
+                // Check for 4-word names
+                if (i <= words.length - 4) {
+                    const fourWordName = `${words[i]} ${words[i+1]} ${words[i+2]} ${words[i+3]}`;
+                    if (isValidPotentialName(fourWordName)) {
+                        potentialNames.push(fourWordName);
+                    }
                 }
             }
             
-            // Check final sequence
-            if (currentSequence.length >= 2 && currentSequence.length <= 4) {
-                const potentialName = currentSequence.join(' ');
-                if (hasNameLikeStructure(potentialName)) {
-                    potentialNames.push(potentialName);
+            // METHOD 2: Look for specific patterns in bank emails
+            const bankPatterns = [
+                /Beneficiary Account Name\s*[|:\-]\s*([A-Z][A-Za-z\s]{4,40})/i,
+                /Beneficiary Name\s*[|:\-]\s*([A-Z][A-Za-z\s]{4,40})/i,
+                /Account Name\s*[|:\-]\s*([A-Z][A-Za-z\s]{4,40})/i,
+                /To:\s*([A-Z][A-Za-z\s]{4,40})/i,
+                /Recipient:\s*([A-Z][A-Za-z\s]{4,40})/i
+            ];
+            
+            for (const pattern of bankPatterns) {
+                const match = text.match(pattern);
+                if (match && match[1]) {
+                    const name = match[1].trim();
+                    if (isValidPotentialName(name)) {
+                        potentialNames.push(name);
+                    }
                 }
             }
             
-            return potentialNames;
+            // Remove duplicates and return the best match (longest name)
+            return [...new Set(potentialNames)].sort((a, b) => b.length - a.length);
+        }
+
+        // NEW: Validation function that mirrors supplier validation logic
+        function isValidPotentialName(name) {
+            const words = name.split(/\s+/);
+            
+            // Must have 2-4 words (like supplier matching)
+            if (words.length < 2 || words.length > 4) return false;
+            
+            // Each word should be at least 2 characters (like supplier logic)
+            if (words.some(word => word.length < 2)) return false;
+            
+            // Should not be common financial terms (like supplier filtering)
+            if (isCommonFinancialTerm(name)) return false;
+            
+            // Should have proper name structure - most words should start with uppercase
+            const uppercaseWords = words.filter(word => /^[A-Z]/.test(word));
+            if (uppercaseWords.length < words.length * 0.7) return false;
+            
+            // Should contain mostly alphabetic characters
+            const alphaRatio = name.replace(/[^A-Za-z]/g, '').length / name.length;
+            if (alphaRatio < 0.7) return false;
+            
+            // Should be a reasonable length
+            if (name.length < 6 || name.length > 50) return false;
+            
+            return true;
         }
 
         // Helper function to check if text contains common financial terms
@@ -1361,21 +1403,6 @@
             
             const lowerText = text.toLowerCase();
             return financialTerms.some(term => lowerText.includes(term));
-        }
-
-        // Helper function to check if text has name-like structure
-        function hasNameLikeStructure(text) {
-            const words = text.split(/\s+/);
-            if (words.length < 2) return false;
-            
-            if (words.some(word => word.length < 2)) return false;
-            
-            if (words.every(word => word.length === 1 && word === word.toUpperCase())) return false;
-            
-            const alphaRatio = text.replace(/[^A-Za-z]/g, '').length / text.length;
-            if (alphaRatio < 0.7) return false;
-            
-            return true;
         }
 
         function setDateFilter(filter) {
