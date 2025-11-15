@@ -1361,22 +1361,22 @@
             
             // ENHANCED: For "Other" category, try to extract beneficiary name or key details
             if (category === 'Other') {
-                // NEW: Enhanced patterns specifically for full names like "EJIM VICTOR CHINEDU"
+                // NEW: Enhanced patterns specifically for VPay format with Beneficiary Account Name
                 const beneficiaryPatterns = [
+                    // VPay specific pattern - "Beneficiary Account Name | EJIM VICTOR CHINEDU"
+                    /Beneficiary Account Name\s*[|:]\s*([A-Z\s]{5,50}(?=\s|$|\.|,|\n))/i,
+                    /Beneficiary Account Name\s+([A-Z\s]{5,50}(?=\s|$|\.|,|\n))/i,
+                    /Beneficiary Name\s*[|:]\s*([A-Z\s]{5,50}(?=\s|$|\.|,|\n))/i,
+                    /Beneficiary Name\s+([A-Z\s]{5,50}(?=\s|$|\.|,|\n))/i,
                     // Pattern for uppercase full names (most common in bank alerts)
                     /([A-Z]{2,}\s+[A-Z]{2,}\s+[A-Z]{2,})/,
                     /([A-Z]{2,}\s+[A-Z]{2,})/,
-                    // Pattern for mixed case full names
-                    /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/,
-                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/,
                     // Bank-specific patterns
                     /TRANSFER TO\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
                     /TO:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
                     /BENEFICIARY:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
                     /RECIPIENT:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
                     /NAME:\s+([A-Z\s]{5,50}(?=\s|$|\.|,))/i,
-                    /Beneficiary Name\s+([A-Za-z\s]{5,50}(?=\s|$|\.|,))/i,
-                    /Beneficiary Account Name\s+([A-Za-z\s]{5,50}(?=\s|$|\.|,))/i,
                     // Generic patterns for any potential name-like structure
                     /(?:to|for|transfer|sent|payment)\s+(?:to|for)?\s*([A-Z][A-Za-z\s]{4,40}(?=\s|$|\.|,|;))/i,
                     /(?:name|recipient|beneficiary)[:\s]*([A-Z][A-Za-z\s]{4,40}(?=\s|$|\.|,|;))/i
@@ -1419,7 +1419,7 @@
                 const words = cleanText(text).split(/\s+/)
                     .filter(word => 
                         word.length > 4 && 
-                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦|has|occurred|ngn|₦)/i)
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦|has|occurred|ngn|₦|vpay|choosing)/i)
                     )
                     .slice(0, 3);
                     
