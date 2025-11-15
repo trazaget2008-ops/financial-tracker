@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -1017,7 +1017,8 @@
                 }
             }
 
-            const fullText = subject + ' ' + body;
+            // CLEAN TEXT - Remove encoding artifacts and normalize
+            const fullText = cleanText(subject + ' ' + body);
 
             // ENHANCED AMOUNT EXTRACTION - Handle specific bank formats
             let amount = null;
@@ -1060,12 +1061,13 @@
                 if (vpayMatch) {
                     amount = parseFloat(vpayMatch[1].replace(/,/g, ''));
                     
-                    // Extract beneficiary information for VPay
+                    // Extract beneficiary information for VPay - ENHANCED FOR CHIPPER CASH FORMAT
                     const beneficiaryPatterns = [
-                        /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                        /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                        /To:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i,
-                        /Recipient:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i
+                        /Beneficiary Account Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /Beneficiary Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /To:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Recipient:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i
                     ];
                     
                     for (const pattern of beneficiaryPatterns) {
@@ -1137,6 +1139,16 @@
             };
         }
 
+        // CLEAN TEXT FUNCTION - Remove encoding artifacts and normalize text
+        function cleanText(text) {
+            return text
+                // Remove common encoding artifacts
+                .replace(/â¦/g, '') // Remove the specific gibberish you mentioned
+                .replace(/[^\x00-\x7F]/g, ' ') // Remove non-ASCII characters
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .trim();
+        }
+
         function categorizeTransaction(text) {
             text = text.toLowerCase();
             
@@ -1175,9 +1187,20 @@
                 }
             }
             
-            // Check Internal Transfers (second priority)
+            // Check Internal Transfers (second priority) - ENHANCED FOR VPAY FORMAT
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                if (text.includes(keyword.toLowerCase())) {
+                // Split compound names for better matching
+                const nameParts = keyword.toLowerCase().split(' ');
+                let matchCount = 0;
+                
+                for (const part of nameParts) {
+                    if (part.length > 3 && text.includes(part)) {
+                        matchCount++;
+                    }
+                }
+                
+                // Require at least 2 matching parts for compound names, or exact match for single words
+                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
                     return 'Internal Transfers';
                 }
             }
@@ -1189,20 +1212,53 @@
                 }
             }
             
-            // Check other categories - USE FLEXIBLE MATCHING
+            // Check other categories - USE SMART MATCHING TO AVOID FALSE POSITIVES
             for (const [category, keywords] of Object.entries(CATEGORIES)) {
                 if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
                     continue;
                 }
                 for (const keyword of keywords) {
-                    // Use flexible matching (no word boundaries)
-                    if (text.includes(keyword.toLowerCase())) {
+                    // Use context-aware matching to avoid false positives
+                    if (isValidCategoryMatch(text, keyword.toLowerCase(), category)) {
                         return category;
                     }
                 }
             }
             
             return 'Other';
+        }
+
+        // SMART MATCHING FUNCTION - Avoid false positives
+        function isValidCategoryMatch(text, keyword, category) {
+            if (!text.includes(keyword)) return false;
+            
+            // SPECIAL CASES FOR COMMON FALSE POSITIVES
+            if (category === 'Utilities') {
+                // Don't match "mtn" if it's part of other words or in transfer contexts
+                if (keyword === 'mtn') {
+                    // Avoid matching in transfer contexts
+                    if (text.includes('transfer to') || text.includes('beneficiary')) {
+                        return false;
+                    }
+                    // Avoid matching if it's part of other words (but allow "mtn" as standalone)
+                    const mtnRegex = /\bmtn\b/i;
+                    return mtnRegex.test(text);
+                }
+                
+                // Similar checks for other utility providers
+                if (keyword === 'glo') {
+                    const gloRegex = /\bglo\b/i;
+                    return gloRegex.test(text) && !text.includes('globus'); // Don't match if globus is present
+                }
+            }
+            
+            // For other categories, use basic matching but with word boundaries for short keywords
+            if (keyword.length <= 4) {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+                return regex.test(text);
+            }
+            
+            return true;
         }
 
         function getCategoryKeyword(text, category) {
@@ -1245,20 +1301,39 @@
             
             // Check Internal Transfers (second priority) - ENHANCED to catch beneficiary names
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                if (text.includes(keyword.toLowerCase())) {
-                    // Try to extract beneficiary name for better categorization
+                // Enhanced matching for VPay format "CHIPPER CASH / ILOANUGO CHIJIOKE"
+                const nameParts = keyword.toLowerCase().split(' ');
+                let matchCount = 0;
+                let matchedParts = [];
+                
+                for (const part of nameParts) {
+                    if (part.length > 3 && text.includes(part)) {
+                        matchCount++;
+                        matchedParts.push(part);
+                    }
+                }
+                
+                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
+                    // Try to extract the full beneficiary name
                     const beneficiaryPatterns = [
-                        /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                        /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                        /To:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i,
-                        /Transfer to\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i,
-                        /Recipient:\s+([A-Za-z\s]+?(?=\s+(?:Account|Bank|$)))/i
+                        /Beneficiary Account Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /Beneficiary Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /To:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Transfer to\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Recipient:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                        /CHIPPER CASH\s*\/\s*([A-Za-z\s]+)/i // Specific for Chipper Cash format
                     ];
                     
                     for (const pattern of beneficiaryPatterns) {
                         const match = text.match(pattern);
                         if (match && match[1]) {
-                            return `${keyword} - ${match[1].trim()}`;
+                            const beneficiary = match[1].trim();
+                            // Clean up the beneficiary name
+                            const cleanBeneficiary = beneficiary.replace(/\s+/g, ' ').replace(/\/.*/, '').trim();
+                            if (cleanBeneficiary.length > 5) {
+                                return `${keyword} - ${cleanBeneficiary}`;
+                            }
                         }
                     }
                     return keyword;
@@ -1272,14 +1347,13 @@
                 }
             }
             
-            // Check other categories - USE FLEXIBLE MATCHING
+            // Check other categories - USE SMART MATCHING
             for (const [cat, keywords] of Object.entries(CATEGORIES)) {
                 if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges') {
                     continue;
                 }
                 for (const keyword of keywords) {
-                    // Use flexible matching (no word boundaries)
-                    if (text.includes(keyword.toLowerCase())) {
+                    if (isValidCategoryMatch(text, keyword.toLowerCase(), cat)) {
                         return keyword;
                     }
                 }
@@ -1305,7 +1379,7 @@
                 for (const pattern of beneficiaryPatterns) {
                     const match = text.match(pattern);
                     if (match && match[1]) {
-                        const potentialName = match[1].trim();
+                        const potentialName = cleanText(match[1].trim());
                         // Validate it's a reasonable name (not too short, not common words)
                         if (potentialName.length > 5 && 
                             !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration)/i) &&
@@ -1315,11 +1389,11 @@
                     }
                 }
                 
-                // If no beneficiary found, return key part of description
-                const words = text.split(/\s+/)
+                // If no beneficiary found, return key part of description (CLEANED)
+                const words = cleanText(text).split(/\s+/)
                     .filter(word => 
                         word.length > 4 && 
-                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from)/i)
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦)/i)
                     )
                     .slice(0, 3);
                     
