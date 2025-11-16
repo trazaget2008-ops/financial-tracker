@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Debit Alert Tracker3</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -1128,23 +1128,14 @@
             const category = categorizeTransaction(fullText);
             const categoryKeyword = getCategoryKeyword(fullText, category);
 
-            // ENHANCED: Create a more informative description
-            let description = subject.substring(0, 80); // Keep subject as base
-            
-            // Add key transaction details to description for better visibility
-            const keyDetails = extractTransactionDetails(fullText);
-            if (keyDetails && category === 'Other') {
-                description += ` | ${keyDetails}`;
-            }
-
             return {
                 date: new Date(date),
-                description: description,
+                description: subject.substring(0, 100),
                 amount: amount,
                 category: category,
                 categoryKeyword: categoryKeyword,
-                fullText: fullText, // Keep full text for detailed analysis
-                id: message.id
+                fullText: fullText,
+                id: message.id // Add message ID for uniqueness
             };
         }
 
@@ -1270,121 +1261,6 @@
             return true;
         }
 
-        // NEW FUNCTION: Extract comprehensive transaction details
-        function extractTransactionDetails(text) {
-            const originalText = text; // Keep original for reference
-            
-            // 1. Try to extract beneficiary name from common patterns - ENHANCED
-            const beneficiaryPatterns = [
-                /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-                /Transfer to\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-                /To:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-                /Beneficiary:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Bank|$)))/i,
-                /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|enterprises|ltd))/i,
-                /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
-                /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
-                /Merchant:\s*([A-Za-z0-9\s&.,-]+)/i,
-                /Vendor:\s*([A-Za-z0-9\s&.,-]+)/i,
-                /POS\s+Purchase\s+at\s+([A-Za-z0-9\s&.,-]+)/i,
-                /Payment\s+to\s+([A-Za-z0-9\s&.,-]+)/i
-            ];
-            
-            for (const pattern of beneficiaryPatterns) {
-                const match = originalText.match(pattern);
-                if (match && match[1]) {
-                    const potentialName = cleanText(match[1].trim());
-                    // Validate it's a reasonable name (not too short, not common words)
-                    if (potentialName.length > 5 && 
-                        !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration|name|alert|notification)/i) &&
-                        potentialName.split(' ').length >= 1) {
-                        return `Beneficiary: ${potentialName}`;
-                    }
-                }
-            }
-            
-            // 2. Try to extract location/merchant information
-            const locationPatterns = [
-                /at\s+([A-Za-z0-9\s&.,-]{5,50}(?=\s+(?:on|with|date|time|$)))/i,
-                /from\s+([A-Za-z0-9\s&.,-]{5,50}(?=\s+(?:on|with|date|time|$)))/i,
-                /location:\s*([A-Za-z0-9\s&.,-]+)/i,
-                /merchant:\s*([A-Za-z0-9\s&.,-]+)/i,
-                /POS\s+at\s+([A-Za-z0-9\s&.,-]+)/i
-            ];
-            
-            for (const pattern of locationPatterns) {
-                const match = originalText.match(pattern);
-                if (match && match[1]) {
-                    const location = cleanText(match[1].trim());
-                    if (location.length > 3 && 
-                        !location.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time)/i)) {
-                        return `Location: ${location}`;
-                    }
-                }
-            }
-            
-            // 3. Try to extract transaction purpose
-            const purposePatterns = [
-                /for\s+([A-Za-z0-9\s]{5,50}(?=\s+(?:payment|purchase|transaction|on|$)))/i,
-                /purpose:\s*([A-Za-z0-9\s]+)/i,
-                /narration:\s*([A-Za-z0-9\s.,]{10,100})/i,
-                /description:\s*([A-Za-z0-9\s.,]{10,100})/i,
-                /details:\s*([A-Za-z0-9\s.,]{10,100})/i
-            ];
-            
-            for (const pattern of purposePatterns) {
-                const match = originalText.match(pattern);
-                if (match && match[1]) {
-                    const purpose = cleanText(match[1].trim());
-                    if (purpose.length > 5 && 
-                        !purpose.match(/(?:amount|debit|credit|balance|transaction|bank|name|account|date|time)/i)) {
-                        return `Purpose: ${purpose}`;
-                    }
-                }
-            }
-            
-            return null; // No specific details found
-        }
-
-        // NEW FUNCTION: Get cleaned transaction hint from full text
-        function getCleanedTransactionHint(text) {
-            // Clean the text and extract meaningful words
-            const cleanedText = cleanText(text);
-            
-            // Remove common banking terms and extract unique words
-            const commonTerms = [
-                'debit', 'alert', 'transaction', 'amount', 'balance', 'account', 'name', 
-                'date', 'time', 'narration', 'transfer', 'to', 'from', 'bank',
-                'ngn', '₦', 'successful', 'completed', 'reference', 'id', 'no',
-                'your', 'has', 'been', 'was', 'this', 'with', 'please', 'kindly',
-                'find', 'below', 'details', 'information', 'regards', 'thank',
-                'you', 'for', 'and', 'the', 'a', 'an', 'in', 'on', 'at', 'by'
-            ];
-            
-            const words = cleanedText.split(/\s+/)
-                .filter(word => 
-                    word.length > 4 && 
-                    !commonTerms.includes(word.toLowerCase()) &&
-                    !word.match(/^\d+$/) && // Remove pure numbers
-                    !word.match(/[0-9.,]+NGN/i) && // Remove amount patterns
-                    !word.match(/^[A-Z0-9]{8,}$/) // Remove reference numbers
-                )
-                .map(word => word.replace(/[^a-zA-Z0-9&.,-]/g, '')) // Clean special chars
-                .filter(word => word.length > 0);
-            
-            // Get unique words and limit to most relevant
-            const uniqueWords = [...new Set(words)].slice(0, 5);
-            
-            if (uniqueWords.length > 0) {
-                return `Key terms: ${uniqueWords.join(', ')}`;
-            }
-            
-            // If no meaningful words found, return a snippet of the cleaned description
-            const snippet = cleanedText.substring(0, 100).replace(/\s+/g, ' ').trim();
-            return `Description snippet: ${snippet}${snippet.length === 100 ? '...' : ''}`;
-        }
-
         function getCategoryKeyword(text, category) {
             text = text.toLowerCase();
             
@@ -1483,16 +1359,48 @@
                 }
             }
             
-            // ENHANCED: For "Other" category, extract more comprehensive information
+            // ENHANCED: For "Other" category, try to extract beneficiary name or key details
             if (category === 'Other') {
-                // First, try to extract meaningful transaction details
-                const transactionDetails = extractTransactionDetails(text);
-                if (transactionDetails) {
-                    return transactionDetails;
+                // Try to extract beneficiary name from common patterns - ENHANCED FOR VPAY FORMAT
+                const beneficiaryPatterns = [
+                    // VPay specific pattern - matches "Beneficiary Account Name" followed by the name
+                    /Beneficiary Account Name\s+([A-Za-z\s]{5,50}(?=\s+Beneficiary|$|\n))/i,
+                    /Beneficiary Name\s+([A-Za-z\s]{5,50}(?=\s+Beneficiary|$|\n))/i,
+                    /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /Transfer to\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /To:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /Beneficiary:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Bank|$)))/i,
+                    /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
+                    /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
+                    /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/, // Three word names
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/ // Two word names
+                ];
+                
+                for (const pattern of beneficiaryPatterns) {
+                    const match = text.match(pattern);
+                    if (match && match[1]) {
+                        const potentialName = cleanText(match[1].trim());
+                        // Validate it's a reasonable name (not too short, not common words)
+                        if (potentialName.length > 5 && 
+                            !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration|transfer|to|from|â¦)/i) &&
+                            potentialName.split(' ').length >= 2) { // At least 2 words for a name
+                            return `Potential: ${potentialName}`;
+                        }
+                    }
                 }
                 
-                // If no specific details found, return cleaned key parts of the full text
-                return getCleanedTransactionHint(text);
+                // If no beneficiary found, return key part of description (CLEANED)
+                const words = cleanText(text).split(/\s+/)
+                    .filter(word => 
+                        word.length > 4 && 
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦)/i)
+                    )
+                    .slice(0, 3);
+                    
+                if (words.length > 0) {
+                    return `Key terms: ${words.join(', ')}`;
+                }
             }
             
             return 'No specific keyword matched';
@@ -2055,6 +1963,3 @@
     </script>
 </body>
 </html>
-
-
-
