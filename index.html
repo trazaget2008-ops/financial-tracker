@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Debit Alert Tracker23</title>
+    <title>Enhanced Debit Alert Tracker3</title>
     <style>
         * {
             margin: 0;
@@ -1297,7 +1297,7 @@
                     const potentialName = cleanText(match[1].trim());
                     // Validate it's a reasonable name (not too short, not common words)
                     if (potentialName.length > 5 && 
-                        !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration|alert|notification)/i) &&
+                        !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration|name|alert|notification)/i) &&
                         potentialName.split(' ').length >= 1) {
                         return `Beneficiary: ${potentialName}`;
                     }
@@ -1338,7 +1338,7 @@
                 if (match && match[1]) {
                     const purpose = cleanText(match[1].trim());
                     if (purpose.length > 5 && 
-                        !purpose.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time)/i)) {
+                        !purpose.match(/(?:amount|debit|credit|balance|transaction|bank|name|account|date|time)/i)) {
                         return `Purpose: ${purpose}`;
                     }
                 }
@@ -2055,5 +2055,6 @@
     </script>
 </body>
 </html>
+
 
 
