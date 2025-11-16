@@ -1282,7 +1282,7 @@
                 /Beneficiary:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Bank|$)))/i,
                 /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
                 /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
-                /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
+                /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|enterprises|ltd))/i,
                 /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
                 /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
                 /Merchant:\s*([A-Za-z0-9\s&.,-]+)/i,
@@ -1354,7 +1354,7 @@
             
             // Remove common banking terms and extract unique words
             const commonTerms = [
-                'debit', 'alert', 'transaction', 'amount', 'balance', 'account', 
+                'debit', 'alert', 'transaction', 'amount', 'balance', 'account', 'name', 
                 'date', 'time', 'narration', 'transfer', 'to', 'from', 'bank',
                 'ngn', '₦', 'successful', 'completed', 'reference', 'id', 'no',
                 'your', 'has', 'been', 'was', 'this', 'with', 'please', 'kindly',
@@ -2055,3 +2055,4 @@
     </script>
 </body>
 </html>
+
