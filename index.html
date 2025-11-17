@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Debit Alert Tracker</title>
+    <title>Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -850,17 +850,20 @@
             }
         }
 
-        // Add this function to detect potential supplier names
+        // Enhanced function to detect potential supplier names
         function detectPotentialSupplier(text) {
             const supplierPatterns = [
-                // VPay pattern
-                /Beneficiary Account Name\s*:?\s*([A-Za-z\s\/&]+?(?=\s*(?:Beneficiary|Beneficiary Account|Account Number|Amount|$|\n)))/i,
-                // Moniepoint pattern
-                /TRANSFER TO\s+([A-Za-z\s\/&]+?(?=\s*-\s*[A-Za-z\s\/&]|$|\n))/i,
-                // General transfer patterns
-                /TO\s+([A-Za-z\s\/&]{5,50}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
-                /TRANSFER\s+(?:TO|FOR)\s+([A-Za-z\s\/&]{5,50}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
-                /PAYMENT\s+(?:TO|FOR)\s+([A-Za-z\s\/&]{5,50}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i
+                // VPay pattern - more specific
+                /Beneficiary Account Name\s*:?\s*([A-Za-z\s\/&.,-]+?(?=\s*(?:Beneficiary|Beneficiary Account|Account Number|Amount|$|\n)))/i,
+                // Moniepoint pattern - more specific
+                /TRANSFER TO\s+([A-Za-z\s\/&.,-]+?(?=\s*-\s*[A-Za-z\s\/&.,-]|$|\n))/i,
+                // Generic transfer patterns
+                /TO\s+([A-Za-z\s\/&.,-]{5,80}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
+                /TRANSFER\s+(?:TO|FOR)\s+([A-Za-z\s\/&.,-]{5,80}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
+                /PAYMENT\s+(?:TO|FOR)\s+([A-Za-z\s\/&.,-]{5,80}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
+                // Beneficiary name patterns
+                /Beneficiary Name\s*:?\s*([A-Za-z\s\/&.,-]+?(?=\s*(?:Beneficiary|Account|Amount|$|\n)))/i,
+                /Account Name\s*:?\s*([A-Za-z\s\/&.,-]+?(?=\s*(?:Account|Amount|$|\n)))/i
             ];
 
             for (const pattern of supplierPatterns) {
@@ -885,8 +888,13 @@
                 .replace(/\/.*$/, '') // Remove anything after slash
                 .replace(/\s*-\s*$/, '') // Remove trailing dash
                 .replace(/^\s*-\s*/, '') // Remove leading dash
-                .replace(/LIMITED$/, 'LIMITED') // Standardize LIMITED
+                .replace(/LIMITED$/i, 'LIMITED') // Standardize LIMITED
                 .replace(/LTD$/i, 'LIMITED') // Standardize LTD to LIMITED
+                .replace(/NIGERIA$/i, 'NIGERIA') // Standardize NIGERIA
+                .replace(/NIG\.?$/i, 'NIGERIA') // Standardize NIG to NIGERIA
+                .replace(/CO\.?$/i, 'COMPANY') // Standardize CO to COMPANY
+                .replace(/CORP\.?$/i, 'CORPORATION') // Standardize CORP to CORPORATION
+                .replace(/ENT\.?$/i, 'ENTERPRISE') // Standardize ENT to ENTERPRISE
                 .trim();
         }
 
@@ -895,12 +903,12 @@
             if (name.length < 3) return false;
             
             // Common words that don't make good supplier names
-            const invalidWords = ['account', 'transfer', 'payment', 'debit', 'credit', 'balance', 'narration', 'beneficiary', 'amount', 'bank', 'from', 'to', 'for', 'of', 'the', 'and', 'or'];
+            const invalidWords = ['account', 'transfer', 'payment', 'debit', 'credit', 'balance', 'narration', 'beneficiary', 'amount', 'bank', 'from', 'to', 'for', 'of', 'the', 'and', 'or', 'on', 'in', 'at', 'we', 'us', 'you', 'your', 'dear', 'hello', 'hi', 'inform', 'occurred', 'transaction', 'alert', 'date', 'time'];
             
             const words = name.toLowerCase().split(' ');
             const validWords = words.filter(word => 
                 word.length > 2 && 
-                !invalidWords.includes(word) &&
+                !invalidWords.includes(word.toLowerCase()) &&
                 !word.match(/^\d+$/) // Not just numbers
             );
             
@@ -1341,11 +1349,9 @@
             }
             
             // Check for potential unregistered suppliers
-            if (category === 'Other') {
-                const potentialSupplier = detectPotentialSupplier(text);
-                if (potentialSupplier && !suppliers.some(s => s.toLowerCase() === potentialSupplier.toLowerCase())) {
-                    return `Potential Supplier: ${potentialSupplier}`;
-                }
+            const potentialSupplier = detectPotentialSupplier(text);
+            if (potentialSupplier && !suppliers.some(s => s.toLowerCase() === potentialSupplier.toLowerCase())) {
+                return `Potential Supplier: ${potentialSupplier}`;
             }
             
             // Check Internal Transfers
@@ -1399,35 +1405,12 @@
                 }
             }
             
-            // For "Other" category, extract beneficiary name
+            // REMOVED: "Key terms" logic - only use potential suppliers
+            // For "Other" category, try once more to detect supplier
             if (category === 'Other') {
-                const beneficiaryPatterns = [
-                    /Beneficiary Account Name\s*:?\s*([A-Z\s]{5,50}(?=\s*(?:Beneficiary|Beneficiary Account|$|\n)))/i,
-                    /Beneficiary Name\s*:?\s*([A-Z\s]{5,50}(?=\s*(?:Beneficiary|Beneficiary Account|$|\n)))/i
-                ];
-                
-                for (const pattern of beneficiaryPatterns) {
-                    const match = text.match(pattern);
-                    if (match && match[1]) {
-                        const potentialName = cleanText(match[1].trim());
-                        if (potentialName.length > 5 && 
-                            !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration|transfer|to|from|â¦)/i) &&
-                            potentialName.split(' ').length >= 2) {
-                            return `Potential: ${potentialName}`;
-                        }
-                    }
-                }
-                
-                // Fallback to key terms
-                const words = cleanText(text).split(/\s+/)
-                    .filter(word => 
-                        word.length > 4 && 
-                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦)/i)
-                    )
-                    .slice(0, 3);
-                    
-                if (words.length > 0) {
-                    return `Key terms: ${words.join(', ')}`;
+                const potentialSupplier = detectPotentialSupplier(text);
+                if (potentialSupplier) {
+                    return `Potential Supplier: ${potentialSupplier}`;
                 }
             }
             
