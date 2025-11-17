@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker4</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -850,6 +850,142 @@
             }
         }
 
+        // Add this function to detect potential supplier names
+        function detectPotentialSupplier(text) {
+            const supplierPatterns = [
+                // VPay pattern
+                /Beneficiary Account Name\s*:?\s*([A-Za-z\s\/&]+?(?=\s*(?:Beneficiary|Beneficiary Account|Account Number|Amount|$|\n)))/i,
+                // Moniepoint pattern
+                /TRANSFER TO\s+([A-Za-z\s\/&]+?(?=\s*-\s*[A-Za-z\s\/&]|$|\n))/i,
+                // General transfer patterns
+                /TO\s+([A-Za-z\s\/&]{5,50}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
+                /TRANSFER\s+(?:TO|FOR)\s+([A-Za-z\s\/&]{5,50}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i,
+                /PAYMENT\s+(?:TO|FOR)\s+([A-Za-z\s\/&]{5,50}?(?=\s*(?:FROM|AMOUNT|NARRATION|$|\n)))/i
+            ];
+
+            for (const pattern of supplierPatterns) {
+                const match = text.match(pattern);
+                if (match && match[1]) {
+                    let potentialSupplier = cleanSupplierName(match[1].trim());
+                    
+                    // Validate the supplier name
+                    if (isValidSupplierName(potentialSupplier)) {
+                        return potentialSupplier;
+                    }
+                }
+            }
+            
+            return null;
+        }
+
+        // Helper function to clean supplier names
+        function cleanSupplierName(name) {
+            return name
+                .replace(/\s+/g, ' ')
+                .replace(/\/.*$/, '') // Remove anything after slash
+                .replace(/\s*-\s*$/, '') // Remove trailing dash
+                .replace(/^\s*-\s*/, '') // Remove leading dash
+                .replace(/LIMITED$/, 'LIMITED') // Standardize LIMITED
+                .replace(/LTD$/i, 'LIMITED') // Standardize LTD to LIMITED
+                .trim();
+        }
+
+        // Helper function to validate supplier names
+        function isValidSupplierName(name) {
+            if (name.length < 3) return false;
+            
+            // Common words that don't make good supplier names
+            const invalidWords = ['account', 'transfer', 'payment', 'debit', 'credit', 'balance', 'narration', 'beneficiary', 'amount', 'bank', 'from', 'to', 'for', 'of', 'the', 'and', 'or'];
+            
+            const words = name.toLowerCase().split(' ');
+            const validWords = words.filter(word => 
+                word.length > 2 && 
+                !invalidWords.includes(word) &&
+                !word.match(/^\d+$/) // Not just numbers
+            );
+            
+            return validWords.length >= 1;
+        }
+
+        // Add this function to display supplier suggestions
+        function displaySupplierSuggestions() {
+            if (!window.potentialSuppliers || window.potentialSuppliers.size === 0) return;
+            
+            const supplierManagement = document.querySelector('.supplier-management');
+            let suggestionsHtml = `
+                <div class="supplier-suggestions" style="margin-top: 15px; padding: 15px; background: #e8f4fd; border-radius: 8px; border-left: 4px solid #2196F3;">
+                    <h4 style="margin-bottom: 10px; color: #1976D2;">💡 Potential Supplier Suggestions</h4>
+                    <p style="margin-bottom: 10px; color: #555; font-size: 14px;">Based on your transactions, you might want to add these suppliers:</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+            `;
+            
+            Array.from(window.potentialSuppliers).forEach(supplier => {
+                suggestionsHtml += `
+                    <div style="background: white; padding: 8px 12px; border-radius: 16px; border: 1px solid #2196F3; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 14px;">${supplier}</span>
+                        <button onclick="quickAddSupplier('${supplier.replace(/'/g, "\\'")}')" 
+                                style="background: #2196F3; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px; line-height: 1;">+</button>
+                    </div>
+                `;
+            });
+            
+            suggestionsHtml += `
+                    </div>
+                    <button onclick="hideSupplierSuggestions()" style="background: none; border: none; color: #666; cursor: pointer; font-size: 12px; text-decoration: underline;">
+                        Don't show again
+                    </button>
+                </div>
+            `;
+            
+            // Remove existing suggestions if any
+            const existingSuggestions = supplierManagement.querySelector('.supplier-suggestions');
+            if (existingSuggestions) {
+                existingSuggestions.remove();
+            }
+            
+            supplierManagement.insertAdjacentHTML('beforeend', suggestionsHtml);
+        }
+
+        // Add quick add supplier function
+        function quickAddSupplier(supplierName) {
+            if (suppliers.some(s => s.toLowerCase() === supplierName.toLowerCase())) {
+                showError('This supplier already exists');
+                return;
+            }
+            
+            suppliers.push(supplierName);
+            saveSuppliers();
+            displaySuppliers();
+            hideError();
+            
+            // Remove from suggestions
+            if (window.potentialSuppliers) {
+                window.potentialSuppliers.delete(supplierName);
+            }
+            
+            // Re-categorize transactions
+            if (allTransactions.length > 0) {
+                allTransactions = allTransactions.map(t => ({
+                    ...t,
+                    category: categorizeTransaction(t.fullText),
+                    categoryKeyword: getCategoryKeyword(t.fullText)
+                }));
+                applyDateFilter();
+            }
+            
+            // Update suggestions display
+            displaySupplierSuggestions();
+        }
+
+        // Add function to hide suggestions
+        function hideSupplierSuggestions() {
+            const suggestions = document.querySelector('.supplier-suggestions');
+            if (suggestions) {
+                suggestions.remove();
+            }
+            window.potentialSuppliers = new Set();
+        }
+
         function initializeGoogleAPI() {
             const clientId = document.getElementById('clientId').value.trim();
             
@@ -1085,7 +1221,7 @@
         function categorizeTransaction(text) {
             text = text.toLowerCase();
             
-            // Check Supplier Payments first
+            // Check Supplier Payments first (from registered suppliers)
             for (const supplier of suppliers) {
                 if (text.includes(supplier.toLowerCase())) {
                     return 'Supplier Payments';
@@ -1103,6 +1239,15 @@
                         return 'Supplier Payments';
                     }
                 }
+            }
+            
+            // Check for potential unregistered suppliers
+            const potentialSupplier = detectPotentialSupplier(text);
+            if (potentialSupplier && !suppliers.some(s => s.toLowerCase() === potentialSupplier.toLowerCase())) {
+                // Store potential supplier for suggestion
+                if (!window.potentialSuppliers) window.potentialSuppliers = new Set();
+                window.potentialSuppliers.add(potentialSupplier);
+                return 'Other'; // Categorize as Other for now
             }
             
             // Check Internal Transfers
@@ -1173,7 +1318,7 @@
         function getCategoryKeyword(text, category) {
             text = text.toLowerCase();
             
-            // Check Supplier Payments
+            // Check Supplier Payments (registered suppliers)
             for (const supplier of suppliers) {
                 if (text.includes(supplier.toLowerCase())) {
                     return supplier;
@@ -1192,6 +1337,14 @@
                     if (matchCount >= 2) {
                         return matchedWords.join(' ');
                     }
+                }
+            }
+            
+            // Check for potential unregistered suppliers
+            if (category === 'Other') {
+                const potentialSupplier = detectPotentialSupplier(text);
+                if (potentialSupplier && !suppliers.some(s => s.toLowerCase() === potentialSupplier.toLowerCase())) {
+                    return `Potential Supplier: ${potentialSupplier}`;
                 }
             }
             
@@ -1455,6 +1608,9 @@
 
             createCharts(transactions, byCategory);
             document.getElementById('resultsContainer').classList.remove('hidden');
+            
+            // Show supplier suggestions after displaying results
+            setTimeout(displaySupplierSuggestions, 500);
         }
 
         // Update quick stats
@@ -1830,4 +1986,3 @@
     </script>
 </body>
 </html>
-
