@@ -822,14 +822,7 @@
             hideError();
             
             // Re-categorize transactions if they exist
-            if (allTransactions.length > 0) {
-                allTransactions = allTransactions.map(t => ({
-                    ...t,
-                    category: categorizeTransaction(t.fullText),
-                    categoryKeyword: getCategoryKeyword(t.fullText, categorizeTransaction(t.fullText))
-                }));
-                applyDateFilter();
-            }
+            recategorizeTransactions();
         }
 
         // Remove supplier
@@ -838,16 +831,19 @@
                 suppliers.splice(index, 1);
                 saveSuppliers();
                 displaySuppliers();
-                
-                // Re-categorize transactions if they exist
-                if (allTransactions.length > 0) {
-                    allTransactions = allTransactions.map(t => ({
-                        ...t,
-                        category: categorizeTransaction(t.fullText),
-                        categoryKeyword: getCategoryKeyword(t.fullText, categorizeTransaction(t.fullText))
-                    }));
-                    applyDateFilter();
-                }
+                recategorizeTransactions();
+            }
+        }
+
+        // Re-categorize all transactions
+        function recategorizeTransactions() {
+            if (allTransactions.length > 0) {
+                allTransactions = allTransactions.map(t => ({
+                    ...t,
+                    category: categorizeTransaction(t.fullText),
+                    categoryKeyword: getCategoryKeyword(t.fullText, categorizeTransaction(t.fullText))
+                }));
+                applyDateFilter();
             }
         }
 
@@ -862,7 +858,6 @@
             // Check if Google API is available
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
                 showError('Google Sign-In library not loaded yet. Please wait a moment and try again.');
-                // Retry after a short delay
                 setTimeout(() => {
                     if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
                         initializeGoogleAPI();
@@ -929,7 +924,6 @@
             showLoading(true);
             hideError();
             
-            // Force refresh by adding timestamp to avoid cache
             fetchDebitAlerts();
         }
 
@@ -1050,109 +1044,8 @@
             // CLEAN TEXT - Remove encoding artifacts and normalize
             const fullText = cleanText(subject + ' ' + body);
 
-            // ENHANCED AMOUNT EXTRACTION - Handle specific bank formats
-            let amount = null;
-            
-            // 1. CARBON BANK - Handle "Debit: X,XXX.XX NGN" pattern
-            const carbonPattern = /Debit:\s*([\d,]+\.?\d*)\s*NGN/i;
-            const carbonMatch = fullText.match(carbonPattern);
-            if (carbonMatch) {
-                amount = parseFloat(carbonMatch[1].replace(/,/g, ''));
-            }
-            
-            // 2. MONIEPOINT - Handle "Debit Amount X,XXX.XX" and avoid account balance
-            if (!amount) {
-                const moniepointPattern = /Debit Amount\s*([\d,]+\.?\d*)/i;
-                const moniepointMatch = fullText.match(moniepointPattern);
-                if (moniepointMatch) {
-                    // Additional check to avoid picking account balance
-                    const balancePattern = /Account Balance:\s*N?\s*([\d,]+\.?\d*)/i;
-                    const balanceMatch = fullText.match(balancePattern);
-                    
-                    // Only proceed if we found a debit amount and it's different from balance
-                    if (!balanceMatch || moniepointMatch[1] !== balanceMatch[1]) {
-                        amount = parseFloat(moniepointMatch[1].replace(/,/g, ''));
-                        
-                        // Extract beneficiary information for Moniepoint TRANSFER TO
-                        const transferPattern = /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i;
-                        const transferMatch = fullText.match(transferPattern);
-                        if (transferMatch) {
-                            // Store beneficiary info in the description for better categorization
-                            subject += ` - Beneficiary: ${transferMatch[1].trim()}`;
-                        }
-                    }
-                }
-            }
-            
-            // 3. VPAY - Handle "a debit of X,XXX.XX" pattern and extract beneficiary
-            if (!amount) {
-                const vpayPattern = /debit\s+of\s+([\d,]+\.?\d*)/i;
-                const vpayMatch = fullText.match(vpayPattern);
-                if (vpayMatch) {
-                    amount = parseFloat(vpayMatch[1].replace(/,/g, ''));
-                    
-                    // Extract beneficiary information for VPay - ENHANCED FOR CHIPPER CASH FORMAT
-                    const beneficiaryPatterns = [
-                        /Beneficiary Account Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
-                        /Beneficiary Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
-                        /To:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
-                        /Recipient:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
-                        /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i
-                    ];
-                    
-                    for (const pattern of beneficiaryPatterns) {
-                        const beneficiaryMatch = fullText.match(pattern);
-                        if (beneficiaryMatch) {
-                            // Store beneficiary info in the description for better categorization
-                            subject += ` - Beneficiary: ${beneficiaryMatch[1].trim()}`;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 4. PAYSTACK - Handle payment amounts
-            if (!amount) {
-                const paystackPattern = /payment of\s*NGN\s*([\d,]+\.?\d*)/i;
-                const paystackMatch = fullText.match(paystackPattern);
-                if (paystackMatch) {
-                    amount = parseFloat(paystackMatch[1].replace(/,/g, ''));
-                }
-            }
-
-            // 5. FALLBACK - Use original patterns if specific patterns didn't match
-            if (!amount) {
-                const amountPatterns = [
-                    // Look for debit amounts specifically
-                    /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
-                    /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
-                    /(?:NGN|₦|N|\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
-                    // General amount patterns (fallback)
-                    /(?:NGN|₦|N|\$)\s*([\d,]+\.?\d*)/i,
-                    /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
-                    /([\d,]+\.?\d*)\s*(?:NGN|₦|N|\$)/i
-                ];
-
-                for (const pattern of amountPatterns) {
-                    const match = fullText.match(pattern);
-                    if (match) {
-                        const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
-                        // Additional validation: exclude very small amounts and account balances
-                        if (potentialAmount > 1 && potentialAmount < 100000000) {
-                            // Check if this might be an account balance
-                            const context = fullText.toLowerCase();
-                            const isLikelyBalance = context.includes('balance') && 
-                                                  (context.indexOf('balance') < context.indexOf(match[0]) + 50);
-                            
-                            if (!isLikelyBalance) {
-                                amount = potentialAmount;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
+            // Extract amount using unified pattern matching
+            const amount = extractAmount(fullText);
             if (!amount) return null;
 
             const category = categorizeTransaction(fullText);
@@ -1167,6 +1060,43 @@
                 fullText: fullText,
                 id: message.id
             };
+        }
+
+        // Unified amount extraction function
+        function extractAmount(text) {
+            const amountPatterns = [
+                // Specific bank formats
+                /Debit:\s*([\d,]+\.?\d*)\s*NGN/i, // CARBON BANK
+                /Debit Amount\s*([\d,]+\.?\d*)/i, // MONIEPOINT
+                /debit\s+of\s+([\d,]+\.?\d*)/i, // VPAY
+                /payment of\s*NGN\s*([\d,]+\.?\d*)/i, // PAYSTACK
+                
+                // General patterns
+                /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
+                /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
+                /(?:NGN|₦|N|\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
+                /(?:NGN|₦|N|\$)\s*([\d,]+\.?\d*)/i,
+                /([\d,]+\.?\d*)\s*(?:NGN|₦|N|\$)/i
+            ];
+
+            for (const pattern of amountPatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
+                    // Additional validation
+                    if (potentialAmount > 1 && potentialAmount < 100000000) {
+                        // Check if this might be an account balance
+                        const context = text.toLowerCase();
+                        const isLikelyBalance = context.includes('balance') && 
+                                              (context.indexOf('balance') < context.indexOf(match[0]) + 50);
+                        
+                        if (!isLikelyBalance) {
+                            return potentialAmount;
+                        }
+                    }
+                }
+            }
+            return null;
         }
 
         // CLEAN TEXT FUNCTION - Remove encoding artifacts and normalize text
@@ -1224,50 +1154,14 @@
             
             // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
-                // Check for exact supplier name match
-                if (text.includes(supplier.toLowerCase())) {
+                if (checkSupplierMatch(text, supplier)) {
                     return 'Supplier Payments';
-                }
-                
-                // Check for partial matches
-                const supplierWords = supplier.toLowerCase().split(' ');
-                if (supplierWords.length > 1) {
-                    let matchCount = 0;
-                    for (const word of supplierWords) {
-                        if (word.length > 3 && text.includes(word)) {
-                            matchCount++;
-                        }
-                    }
-                    if (matchCount >= 2) {
-                        return 'Supplier Payments';
-                    }
-                }
-                
-                // Check for distinctive single word matches
-                const distinctiveSupplierWords = supplierWords.filter(word => 
-                    word.length > 5 && 
-                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
-                );
-                
-                for (const word of distinctiveSupplierWords) {
-                    if (text.includes(word)) {
-                        return 'Supplier Payments';
-                    }
                 }
             }
             
             // Check Internal Transfers (second priority)
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                const nameParts = keyword.toLowerCase().split(' ');
-                let matchCount = 0;
-                
-                for (const part of nameParts) {
-                    if (part.length > 3 && text.includes(part)) {
-                        matchCount++;
-                    }
-                }
-                
-                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
+                if (checkKeywordMatch(text, keyword)) {
                     return 'Internal Transfers';
                 }
             }
@@ -1292,6 +1186,56 @@
             }
             
             return 'Other';
+        }
+
+        // Unified supplier matching logic
+        function checkSupplierMatch(text, supplier) {
+            // Check for exact supplier name match
+            if (text.includes(supplier.toLowerCase())) {
+                return true;
+            }
+            
+            // Check for partial matches
+            const supplierWords = supplier.toLowerCase().split(' ');
+            if (supplierWords.length > 1) {
+                let matchCount = 0;
+                for (const word of supplierWords) {
+                    if (word.length > 3 && text.includes(word)) {
+                        matchCount++;
+                    }
+                }
+                if (matchCount >= 2) {
+                    return true;
+                }
+            }
+            
+            // Check for distinctive single word matches
+            const distinctiveSupplierWords = supplierWords.filter(word => 
+                word.length > 5 && 
+                !['limited', 'company', 'stores', 'enterprise'].includes(word)
+            );
+            
+            for (const word of distinctiveSupplierWords) {
+                if (text.includes(word)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // Unified keyword matching logic
+        function checkKeywordMatch(text, keyword) {
+            const nameParts = keyword.toLowerCase().split(' ');
+            let matchCount = 0;
+            
+            for (const part of nameParts) {
+                if (part.length > 3 && text.includes(part)) {
+                    matchCount++;
+                }
+            }
+            
+            return nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase());
         }
 
         // SMART MATCHING FUNCTION - Avoid false positives
@@ -1327,53 +1271,14 @@
             
             // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
-                if (text.includes(supplier.toLowerCase())) {
+                if (checkSupplierMatch(text, supplier)) {
                     return supplier;
-                }
-                
-                // Check for partial matches
-                const supplierWords = supplier.toLowerCase().split(' ');
-                if (supplierWords.length > 1) {
-                    let matchCount = 0;
-                    let matchedWords = [];
-                    for (const word of supplierWords) {
-                        if (word.length > 3 && text.includes(word)) {
-                            matchCount++;
-                            matchedWords.push(word);
-                        }
-                    }
-                    if (matchCount >= 2) {
-                        return matchedWords.join(' ');
-                    }
-                }
-                
-                // Check for distinctive single word matches
-                const distinctiveSupplierWords = supplierWords.filter(word => 
-                    word.length > 5 && 
-                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
-                );
-                
-                for (const word of distinctiveSupplierWords) {
-                    if (text.includes(word)) {
-                        return word;
-                    }
                 }
             }
             
             // Check Internal Transfers (second priority)
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                const nameParts = keyword.toLowerCase().split(' ');
-                let matchCount = 0;
-                let matchedParts = [];
-                
-                for (const part of nameParts) {
-                    if (part.length > 3 && text.includes(part)) {
-                        matchCount++;
-                        matchedParts.push(part);
-                    }
-                }
-                
-                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
+                if (checkKeywordMatch(text, keyword)) {
                     const extractedName = extractPotentialName(originalText);
                     if (extractedName) {
                         return `${keyword} - ${extractedName}`;
