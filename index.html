@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker4</title>
+    <title>Debit Alert Tracker5</title>
     <style>
         * {
             margin: 0;
@@ -1131,7 +1131,7 @@
 
             // CRITICAL FIX: Pass beneficiary to categorization functions
             const category = categorizeTransaction(fullText, beneficiary);
-            const categoryKeyword = getCategoryKeyword(fullText, category, beneficiary);
+            const categoryKeyword = getCategoryKeyword(category, beneficiary);
 
             // DEBUG: Log the final result
             console.log("🎯 FINAL CATEGORY:", category, "KEYWORD:", categoryKeyword, "BENEFICIARY:", beneficiary);
@@ -1272,9 +1272,8 @@
             return true;
         }
 
-        function getCategoryKeyword(text, category, beneficiary = null) {
-            text = text.toLowerCase();
-            
+        // SIMPLIFIED getCategoryKeyword - ONLY USES BENEFICIARY, NO KEY TERMS
+        function getCategoryKeyword(category, beneficiary = null) {
             console.log("🔑 GETTING KEYWORD - Category:", category, "Beneficiary:", beneficiary);
             
             // 1. HIGHEST PRIORITY: If we have a beneficiary and it's Internal Transfers or Other
@@ -1291,77 +1290,37 @@
             
             // 2. Check Supplier Payments
             for (const supplier of suppliers) {
-                if (text.includes(supplier.toLowerCase())) {
+                if (category === 'Supplier Payments') {
                     return supplier;
-                }
-                
-                const supplierWords = supplier.toLowerCase().split(' ');
-                if (supplierWords.length > 1) {
-                    let matchCount = 0;
-                    let matchedWords = [];
-                    for (const word of supplierWords) {
-                        if (word.length > 3 && text.includes(word)) {
-                            matchCount++;
-                            matchedWords.push(word);
-                        }
-                    }
-                    if (matchCount >= 2) {
-                        return matchedWords.join(' ');
-                    }
                 }
             }
             
             // 3. Check Internal Transfers in text
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                const nameParts = keyword.toLowerCase().split(' ');
-                let matchCount = 0;
-                let matchedParts = [];
-                
-                for (const part of nameParts) {
-                    if (part.length > 3 && text.includes(part)) {
-                        matchCount++;
-                        matchedParts.push(part);
-                    }
-                }
-                
-                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
+                if (category === 'Internal Transfers') {
                     return keyword;
                 }
             }
             
             // 4. Check Bank Charges
             for (const keyword of CATEGORIES['Bank Charges']) {
-                if (text.includes(keyword.toLowerCase())) {
+                if (category === 'Bank Charges') {
                     return keyword;
                 }
             }
             
             // 5. Check other categories
             for (const [cat, keywords] of Object.entries(CATEGORIES)) {
-                if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges') {
-                    continue;
-                }
-                for (const keyword of keywords) {
-                    if (isValidCategoryMatch(text, keyword.toLowerCase(), cat)) {
+                if (cat === category) {
+                    for (const keyword of keywords) {
                         return keyword;
                     }
                 }
             }
             
-            // 6. Fallback to key terms
-            const words = cleanText(text).split(/\s+/)
-                .filter(word => 
-                    word.length > 4 && 
-                    !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦)/i)
-                )
-                .slice(0, 3);
-                
-            if (words.length > 0) {
-                console.log("🔑 USING KEY TERMS:", words.join(', '));
-                return `Key terms: ${words.join(', ')}`;
-            }
-            
-            return 'No specific keyword matched';
+            // 6. FINAL FALLBACK: If no beneficiary and no category match
+            console.log("❌ NO BENEFICIARY FOUND - Using generic message");
+            return 'Transaction details';
         }
 
         function setDateFilter(filter) {
@@ -1928,4 +1887,3 @@
     </script>
 </body>
 </html>
-
