@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -770,6 +770,17 @@
             'Other': '#7f8c8d'
         };
 
+        // IMPROVED BENEFICIARY PATTERNS - Handle both uppercase and lowercase letters
+        const beneficiaryPatterns = [
+            /Beneficiary Account Name[:\s]+([A-Za-z\s\/\'\-\.]+?(?=\s+Beneficiary|Account\s+Number|\d{10}|$))/i,
+            /Beneficiary Name[:\s]+([A-Za-z\s\/\'\-\.]+?(?=\s+Beneficiary|Account\s+Number|\d{10}|$))/i,
+            /To:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Bank|Number|$)))/i,
+            /Recipient:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Bank|Number|$)))/i,
+            /TRANSFER TO\s+([A-Za-z\s\/\'\-\.]{3,100}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+            /Beneficiary:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Bank|$)))/i,
+            /Account Name:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Number|$)))/i
+        ];
+
         // Load suppliers from localStorage
         function loadSuppliers() {
             const saved = localStorage.getItem('debitTracker_suppliers');
@@ -1048,12 +1059,19 @@
             const amount = extractAmount(fullText);
             if (!amount) return null;
 
+            // Extract beneficiary information using improved patterns
+            let enhancedSubject = subject;
+            const extractedBeneficiary = extractBeneficiaryName(fullText);
+            if (extractedBeneficiary) {
+                enhancedSubject += ` - Beneficiary: ${extractedBeneficiary}`;
+            }
+
             const category = categorizeTransaction(fullText);
             const categoryKeyword = getCategoryKeyword(fullText, category);
 
             return {
                 date: new Date(date),
-                description: subject.substring(0, 100),
+                description: enhancedSubject.substring(0, 100),
                 amount: amount,
                 category: category,
                 categoryKeyword: categoryKeyword,
@@ -1099,6 +1117,54 @@
             return null;
         }
 
+        // IMPROVED BENEFICIARY EXTRACTION - Handles both uppercase and lowercase
+        function extractBeneficiaryName(text) {
+            // Method 1: Use beneficiary patterns (most reliable)
+            for (const pattern of beneficiaryPatterns) {
+                const match = text.match(pattern);
+                if (match && match[1]) {
+                    const name = match[1].trim();
+                    // Validate it's a reasonable name (not too short, not common bank terms)
+                    if (name.length > 5 && !name.match(/^(?:debit|credit|bank|account|transfer|amount|balance)$/i)) {
+                        return name;
+                    }
+                }
+            }
+            
+            // Method 2: Find sequences of mixed-case words (2-4 words, likely names)
+            const nameMatches = text.match(/\b([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+){1,3})\b/g);
+            if (nameMatches) {
+                // Filter out common bank terms and validate
+                const filtered = nameMatches.filter(match => {
+                    const lower = match.toLowerCase();
+                    const wordCount = match.split(/\s+/).length;
+                    return wordCount >= 2 && wordCount <= 4 &&
+                           !lower.match(/debit|credit|bank|account|transfer|amount|balance|paid|first|second|third|details|complete|occurred|hello|dear/);
+                });
+                
+                if (filtered.length > 0) {
+                    // Return the longest match (likely the full name)
+                    return filtered.sort((a, b) => b.length - a.length)[0];
+                }
+            }
+            
+            // Method 3: Look for all-caps names (some banks use all caps)
+            const allCapsMatches = text.match(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b/g);
+            if (allCapsMatches) {
+                const filtered = allCapsMatches.filter(match => {
+                    const wordCount = match.split(/\s+/).length;
+                    return wordCount >= 2 && wordCount <= 4 &&
+                           !match.match(/DEBIT|CREDIT|BANK|ACCOUNT|TRANSFER|AMOUNT|BALANCE|PAID|FIRST|SECOND|THIRD|DETAILS|COMPLETE|OCCURRED/);
+                });
+                
+                if (filtered.length > 0) {
+                    return filtered.sort((a, b) => b.length - a.length)[0];
+                }
+            }
+            
+            return null;
+        }
+
         // CLEAN TEXT FUNCTION - Remove encoding artifacts and normalize text
         function cleanText(text) {
             return text
@@ -1112,41 +1178,7 @@
 
         // EXTRACT POTENTIAL NAME - Dedicated function for name extraction
         function extractPotentialName(text) {
-            // Method 1: Look for "Beneficiary Account Name" specifically (most reliable)
-            const beneficiaryMatch = text.match(/Beneficiary\s+Account\s+Name[:\s]+([A-Za-z\s]{3,50}?)(?=\s+Beneficiary\s+Account\s+Number|Account\s+Number|\d{10}|$)/i);
-            if (beneficiaryMatch && beneficiaryMatch[1]) {
-                const name = beneficiaryMatch[1].trim();
-                if (name.length > 5) return name;
-            }
-            
-            // Method 2: Find sequences of all-caps words (2-4 words, likely names)
-            const allCapsMatches = text.match(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b/g);
-            if (allCapsMatches) {
-                // Filter out common bank terms
-                const filtered = allCapsMatches.filter(match => {
-                    const lower = match.toLowerCase();
-                    const wordCount = match.split(/\s+/).length;
-                    return wordCount >= 2 && wordCount <= 4 &&
-                           !lower.match(/debit|credit|bank|account|transfer|amount|balance|paid|first|second|third|details|complete|occurred/);
-                });
-                
-                if (filtered.length > 0) {
-                    // Return the longest match (likely the full name)
-                    return filtered.sort((a, b) => b.length - a.length)[0];
-                }
-            }
-            
-            // Method 3: Look for 2-3 title-case words
-            const titleCaseMatch = text.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/);
-            if (titleCaseMatch && titleCaseMatch[1]) {
-                const name = titleCaseMatch[1];
-                // Validate it's not a common phrase
-                if (name.length > 8 && !name.match(/Hello|Dear|Bank|First|Last|Account|Debit|Transfer/i)) {
-                    return name;
-                }
-            }
-            
-            return null;
+            return extractBeneficiaryName(text); // Use the improved function
         }
 
         function categorizeTransaction(text) {
@@ -1923,4 +1955,3 @@
     </script>
 </body>
 </html>
-
