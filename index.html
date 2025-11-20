@@ -569,9 +569,9 @@
                 <input type="text" id="clientId" placeholder="Enter your Client ID (e.g., 123456789-abcdef.apps.googleusercontent.com)">
             </div>
             <div class="auth-section">
-                <button class="btn" id="authorizeBtn">Connect Gmail Account</button>
-                <button class="btn" id="signoutBtn" style="display:none; background:#e74c3c;">Sign Out</button>
-                <button class="btn" id="refreshBtn" style="display:none; margin-left:10px;">Refresh Data</button>
+                <button class="btn" id="authorizeBtn" onclick="handleAuthClick()">Connect Gmail Account</button>
+                <button class="btn" id="signoutBtn" onclick="handleSignoutClick()" style="display:none; background:#e74c3c;">Sign Out</button>
+                <button class="btn" id="refreshBtn" onclick="refreshData()" style="display:none; margin-left:10px;">Refresh Data</button>
             </div>
             <div id="error" class="error hidden"></div>
             
@@ -580,7 +580,7 @@
                 <p style="color: #666; margin-bottom: 10px;">Add suppliers to automatically categorize their transactions. Keywords are matched flexibly.</p>
                 <div class="add-supplier-form">
                     <input type="text" id="newSupplierInput" placeholder="Enter supplier name (e.g., Osbud Pharmacy)">
-                    <button class="btn btn-small" id="addSupplierBtn">Add Supplier</button>
+                    <button class="btn btn-small" onclick="addSupplier()">Add Supplier</button>
                 </div>
                 <div class="supplier-list" id="supplierList"></div>
             </div>
@@ -590,27 +590,27 @@
             <div class="card">
                 <h2 style="margin-bottom:20px;">Date Range</h2>
                 <div class="date-filters">
-                    <button class="date-filter-btn active" data-filter="today">Today</button>
-                    <button class="date-filter-btn" data-filter="yesterday">Yesterday</button>
-                    <button class="date-filter-btn" data-filter="week">This Week</button>
-                    <button class="date-filter-btn" data-filter="month">This Month</button>
-                    <button class="date-filter-btn" data-filter="year">This Year</button>
-                    <button class="date-filter-btn" data-filter="all">All Time</button>
+                    <button class="date-filter-btn active" onclick="setDateFilter('today')">Today</button>
+                    <button class="date-filter-btn" onclick="setDateFilter('yesterday')">Yesterday</button>
+                    <button class="date-filter-btn" onclick="setDateFilter('week')">This Week</button>
+                    <button class="date-filter-btn" onclick="setDateFilter('month')">This Month</button>
+                    <button class="date-filter-btn" onclick="setDateFilter('year')">This Year</button>
+                    <button class="date-filter-btn" onclick="setDateFilter('all')">All Time</button>
                     <div class="custom-date-inputs">
                         <input type="date" id="startDate">
                         <span>to</span>
                         <input type="date" id="endDate">
-                        <button class="btn btn-secondary" id="applyCustomDate">Apply</button>
+                        <button class="btn btn-secondary" onclick="applyCustomDateRange()">Apply</button>
                     </div>
                 </div>
 
                 <!-- Search and Filter Section -->
                 <div class="search-filter">
-                    <input type="text" id="searchInput" placeholder="Search transactions by description, amount, or category...">
-                    <select id="categoryFilter">
+                    <input type="text" id="searchInput" placeholder="Search transactions by description, amount, or category..." onkeyup="filterTransactions()">
+                    <select id="categoryFilter" onchange="filterTransactions()">
                         <option value="">All Categories</option>
                     </select>
-                    <select id="amountFilter">
+                    <select id="amountFilter" onchange="filterTransactions()">
                         <option value="">Any Amount</option>
                         <option value="0-1000">₦0 - ₦1,000</option>
                         <option value="1000-5000">₦1,000 - ₦5,000</option>
@@ -675,10 +675,10 @@
                 </div>
 
                 <div class="tabs">
-                    <button class="tab active" data-tab="overview">Overview</button>
-                    <button class="tab" data-tab="trends">Spending Trends</button>
-                    <button class="tab" data-tab="categories">Categories</button>
-                    <button class="tab" data-tab="export">Export</button>
+                    <button class="tab active" onclick="switchTab('overview')">Overview</button>
+                    <button class="tab" onclick="switchTab('trends')">Spending Trends</button>
+                    <button class="tab" onclick="switchTab('categories')">Categories</button>
+                    <button class="tab" onclick="switchTab('export')">Export</button>
                 </div>
 
                 <div id="overview" class="tab-content active">
@@ -710,9 +710,9 @@
                     <div class="export-section">
                         <h3>Export Your Data</h3>
                         <p style="margin-bottom: 20px; color: #666;">Download your transaction data for further analysis</p>
-                        <button class="btn" id="exportCSVBtn">Export to CSV</button>
-                        <button class="btn btn-secondary" id="exportJSONBtn" style="margin-left: 10px;">Export to JSON</button>
-                        <button class="btn btn-secondary" id="printReportBtn" style="margin-left: 10px;">Print Report</button>
+                        <button class="btn" onclick="exportToCSV()">Export to CSV</button>
+                        <button class="btn btn-secondary" onclick="exportToJSON()" style="margin-left: 10px;">Export to JSON</button>
+                        <button class="btn btn-secondary" onclick="printReport()" style="margin-left: 10px;">Print Report</button>
                     </div>
                 </div>
 
@@ -770,17 +770,6 @@
             'Other': '#7f8c8d'
         };
 
-        // IMPROVED BENEFICIARY PATTERNS - Handle both uppercase and lowercase letters
-        const beneficiaryPatterns = [
-            /Beneficiary Account Name[:\s]+([A-Za-z\s\/\'\-\.]+?(?=\s+Beneficiary|Account\s+Number|\d{10}|$))/i,
-            /Beneficiary Name[:\s]+([A-Za-z\s\/\'\-\.]+?(?=\s+Beneficiary|Account\s+Number|\d{10}|$))/i,
-            /To:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Bank|Number|$)))/i,
-            /Recipient:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Bank|Number|$)))/i,
-            /TRANSFER TO\s+([A-Za-z\s\/\'\-\.]{3,100}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
-            /Beneficiary:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Bank|$)))/i,
-            /Account Name:\s+([A-Za-z\s\/\'\-\.]+?(?=\s+(?:Account|Number|$)))/i
-        ];
-
         // Load suppliers from localStorage
         function loadSuppliers() {
             const saved = localStorage.getItem('debitTracker_suppliers');
@@ -833,7 +822,14 @@
             hideError();
             
             // Re-categorize transactions if they exist
-            recategorizeTransactions();
+            if (allTransactions.length > 0) {
+                allTransactions = allTransactions.map(t => ({
+                    ...t,
+                    category: categorizeTransaction(t.fullText),
+                    categoryKeyword: getCategoryKeyword(t.fullText)
+                }));
+                applyDateFilter();
+            }
         }
 
         // Remove supplier
@@ -842,19 +838,16 @@
                 suppliers.splice(index, 1);
                 saveSuppliers();
                 displaySuppliers();
-                recategorizeTransactions();
-            }
-        }
-
-        // Re-categorize all transactions
-        function recategorizeTransactions() {
-            if (allTransactions.length > 0) {
-                allTransactions = allTransactions.map(t => ({
-                    ...t,
-                    category: categorizeTransaction(t.fullText),
-                    categoryKeyword: getCategoryKeyword(t.fullText, categorizeTransaction(t.fullText))
-                }));
-                applyDateFilter();
+                
+                // Re-categorize transactions if they exist
+                if (allTransactions.length > 0) {
+                    allTransactions = allTransactions.map(t => ({
+                        ...t,
+                        category: categorizeTransaction(t.fullText),
+                        categoryKeyword: getCategoryKeyword(t.fullText)
+                    }));
+                    applyDateFilter();
+                }
             }
         }
 
@@ -866,25 +859,12 @@
                 return false;
             }
 
-            // Check if Google API is available
-            if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-                showError('Google Sign-In library not loaded yet. Please wait a moment and try again.');
-                setTimeout(() => {
-                    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
-                        initializeGoogleAPI();
-                    } else {
-                        showError('Failed to load Google Sign-In. Please refresh the page.');
-                    }
-                }, 1000);
-                return false;
-            }
-
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: SCOPES,
                 callback: (response) => {
                     if (response.error !== undefined) {
-                        showError('Authentication failed: ' + response.error);
+                        showError(response.error);
                         return;
                     }
                     accessToken = response.access_token;
@@ -935,6 +915,7 @@
             showLoading(true);
             hideError();
             
+            // Force refresh by adding timestamp to avoid cache
             fetchDebitAlerts();
         }
 
@@ -943,33 +924,24 @@
             hideError();
 
             try {
-                if (!accessToken) {
-                    throw new Error('No access token available. Please reconnect to Gmail.');
-                }
-
                 const query = 'subject:(debit OR debited OR transaction) -credit';
                 const response = await fetch(
-                    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=500`,
+                    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=500`, // Increased limit
                     {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
-                            'Cache-Control': 'no-cache'
+                            'Cache-Control': 'no-cache' // Prevent caching
                         }
                     }
                 );
 
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Authentication failed. Please sign out and sign in again.');
-                    } else if (response.status === 403) {
-                        throw new Error('Gmail API access denied. Make sure you enabled the Gmail API in Google Cloud Console.');
-                    }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
                 const data = await response.json();
                 
-                if (!data.messages || data.messages.length === 0) {
+                if (!data.messages) {
                     showError('No debit alert emails found. Make sure your query matches your bank\'s email format.');
                     showLoading(false);
                     return;
@@ -989,12 +961,6 @@
                                     }
                                 }
                             );
-                            
-                            if (!msgResponse.ok) {
-                                console.warn(`Failed to fetch message ${message.id}: ${msgResponse.status}`);
-                                return null;
-                            }
-                            
                             const msgData = await msgResponse.json();
                             const transaction = parseEmailForTransaction(msgData);
                             return transaction;
@@ -1019,7 +985,6 @@
                 showLoading(false);
 
             } catch (error) {
-                console.error('Gmail API Error:', error);
                 showError('Error fetching emails: ' + error.message);
                 showLoading(false);
             }
@@ -1031,20 +996,20 @@
             const date = headers.find(h => h.name === 'Date')?.value || '';
             
             let body = '';
-            if (message.payload.body && message.payload.body.data) {
+            if (message.payload.body.data) {
                 body = atob(message.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
             } else if (message.payload.parts) {
                 // Try to get both plain text and HTML parts for more data
                 for (const part of message.payload.parts) {
                     if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
-                        if (part.body && part.body.data) {
+                        if (part.body.data) {
                             body += ' ' + atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
                         }
                     }
                     // Check nested parts
                     if (part.parts) {
                         for (const subPart of part.parts) {
-                            if ((subPart.mimeType === 'text/plain' || subPart.mimeType === 'text/html') && subPart.body && subPart.body.data) {
+                            if ((subPart.mimeType === 'text/plain' || subPart.mimeType === 'text/html') && subPart.body.data) {
                                 body += ' ' + atob(subPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
                             }
                         }
@@ -1055,130 +1020,133 @@
             // CLEAN TEXT - Remove encoding artifacts and normalize
             const fullText = cleanText(subject + ' ' + body);
 
-            // Extract amount using unified pattern matching
-            const amount = extractAmount(fullText);
-            if (!amount) return null;
-
-            // Extract beneficiary information using improved patterns
-            let enhancedSubject = subject;
-            const extractedBeneficiary = extractBeneficiaryName(fullText);
-            if (extractedBeneficiary) {
-                enhancedSubject += ` - Beneficiary: ${extractedBeneficiary}`;
+            // ENHANCED AMOUNT EXTRACTION - Handle specific bank formats
+            let amount = null;
+            
+            // 1. CARBON BANK - Handle "Debit: X,XXX.XX NGN" pattern
+            const carbonPattern = /Debit:\s*([\d,]+\.?\d*)\s*NGN/i;
+            const carbonMatch = fullText.match(carbonPattern);
+            if (carbonMatch) {
+                amount = parseFloat(carbonMatch[1].replace(/,/g, ''));
             }
+            
+            // 2. MONIEPOINT - Handle "Debit Amount X,XXX.XX" and avoid account balance
+            if (!amount) {
+                const moniepointPattern = /Debit Amount\s*([\d,]+\.?\d*)/i;
+                const moniepointMatch = fullText.match(moniepointPattern);
+                if (moniepointMatch) {
+                    // Additional check to avoid picking account balance
+                    const balancePattern = /Account Balance:\s*N?\s*([\d,]+\.?\d*)/i;
+                    const balanceMatch = fullText.match(balancePattern);
+                    
+                    // Only proceed if we found a debit amount and it's different from balance
+                    if (!balanceMatch || moniepointMatch[1] !== balanceMatch[1]) {
+                        amount = parseFloat(moniepointMatch[1].replace(/,/g, ''));
+                        
+                        // Extract beneficiary information for Moniepoint TRANSFER TO
+                        const transferPattern = /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i;
+                        const transferMatch = fullText.match(transferPattern);
+                        if (transferMatch) {
+                            // Store beneficiary info in the description for better categorization
+                            subject += ` - Beneficiary: ${transferMatch[1].trim()}`;
+                        }
+                    }
+                }
+            }
+            
+            // 3. VPAY - Handle "a debit of X,XXX.XX" pattern and extract beneficiary
+            if (!amount) {
+                const vpayPattern = /debit\s+of\s+([\d,]+\.?\d*)/i;
+                const vpayMatch = fullText.match(vpayPattern);
+                if (vpayMatch) {
+                    amount = parseFloat(vpayMatch[1].replace(/,/g, ''));
+                    
+                    // Extract beneficiary information for VPay - ENHANCED FOR CHIPPER CASH FORMAT
+                    const beneficiaryPatterns = [
+                        /Beneficiary Account Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /Beneficiary Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /To:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Recipient:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i
+                    ];
+                    
+                    for (const pattern of beneficiaryPatterns) {
+                        const beneficiaryMatch = fullText.match(pattern);
+                        if (beneficiaryMatch) {
+                            // Store beneficiary info in the description for better categorization
+                            subject += ` - Beneficiary: ${beneficiaryMatch[1].trim()}`;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 4. PAYSTACK - Handle payment amounts
+            if (!amount) {
+                const paystackPattern = /payment of\s*NGN\s*([\d,]+\.?\d*)/i;
+                const paystackMatch = fullText.match(paystackPattern);
+                if (paystackMatch) {
+                    amount = parseFloat(paystackMatch[1].replace(/,/g, ''));
+                }
+            }
+
+            // 5. FALLBACK - Use original patterns if specific patterns didn't match
+            if (!amount) {
+                const amountPatterns = [
+                    // Look for debit amounts specifically
+                    /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                    /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                    /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
+                    // General amount patterns (fallback)
+                    /(?:NGN|₦|N|\\$)\s*([\d,]+\.?\d*)/i,
+                    /(?:amount|amt|debited|debit).*?(?:NGN|₦|N|\\$)?\s*([\d,]+\.?\d*)/i,
+                    /([\d,]+\.?\d*)\s*(?:NGN|₦|N|\\$)/i
+                ];
+
+                for (const pattern of amountPatterns) {
+                    const match = fullText.match(pattern);
+                    if (match) {
+                        const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
+                        // Additional validation: exclude very small amounts and account balances
+                        if (potentialAmount > 1 && potentialAmount < 100000000) { // Reasonable transaction range
+                            // Check if this might be an account balance (often appears with "balance" or "account")
+                            const context = fullText.toLowerCase();
+                            const isLikelyBalance = context.includes('balance') && 
+                                                  (context.indexOf('balance') < context.indexOf(match[0]) + 50);
+                            
+                            if (!isLikelyBalance) {
+                                amount = potentialAmount;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!amount) return null;
 
             const category = categorizeTransaction(fullText);
             const categoryKeyword = getCategoryKeyword(fullText, category);
 
             return {
                 date: new Date(date),
-                description: enhancedSubject.substring(0, 100),
+                description: subject.substring(0, 100),
                 amount: amount,
                 category: category,
                 categoryKeyword: categoryKeyword,
                 fullText: fullText,
-                id: message.id
+                id: message.id // Add message ID for uniqueness
             };
-        }
-
-        // Unified amount extraction function
-        function extractAmount(text) {
-            const amountPatterns = [
-                // Specific bank formats
-                /Debit:\s*([\d,]+\.?\d*)\s*NGN/i, // CARBON BANK
-                /Debit Amount\s*([\d,]+\.?\d*)/i, // MONIEPOINT
-                /debit\s+of\s+([\d,]+\.?\d*)/i, // VPAY
-                /payment of\s*NGN\s*([\d,]+\.?\d*)/i, // PAYSTACK
-                
-                // General patterns
-                /(?:debit\s*(?:amount|transaction)?|debited)\s*(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
-                /(?:amount\s*debited|transaction\s*amount)\s*(?:NGN|₦|N|\$)?\s*([\d,]+\.?\d*)/i,
-                /(?:NGN|₦|N|\$)\s*([\d,]+\.?\d*)\s*(?:was\s*debited|has\s*been\s*debited)/i,
-                /(?:NGN|₦|N|\$)\s*([\d,]+\.?\d*)/i,
-                /([\d,]+\.?\d*)\s*(?:NGN|₦|N|\$)/i
-            ];
-
-            for (const pattern of amountPatterns) {
-                const match = text.match(pattern);
-                if (match) {
-                    const potentialAmount = parseFloat(match[1].replace(/,/g, ''));
-                    // Additional validation
-                    if (potentialAmount > 1 && potentialAmount < 100000000) {
-                        // Check if this might be an account balance
-                        const context = text.toLowerCase();
-                        const isLikelyBalance = context.includes('balance') && 
-                                              (context.indexOf('balance') < context.indexOf(match[0]) + 50);
-                        
-                        if (!isLikelyBalance) {
-                            return potentialAmount;
-                        }
-                    }
-                }
-            }
-            return null;
-        }
-
-        // IMPROVED BENEFICIARY EXTRACTION - Handles both uppercase and lowercase
-        function extractBeneficiaryName(text) {
-            // Method 1: Use beneficiary patterns (most reliable)
-            for (const pattern of beneficiaryPatterns) {
-                const match = text.match(pattern);
-                if (match && match[1]) {
-                    const name = match[1].trim();
-                    // Validate it's a reasonable name (not too short, not common bank terms)
-                    if (name.length > 5 && !name.match(/^(?:debit|credit|bank|account|transfer|amount|balance)$/i)) {
-                        return name;
-                    }
-                }
-            }
-            
-            // Method 2: Find sequences of mixed-case words (2-4 words, likely names)
-            const nameMatches = text.match(/\b([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+){1,3})\b/g);
-            if (nameMatches) {
-                // Filter out common bank terms and validate
-                const filtered = nameMatches.filter(match => {
-                    const lower = match.toLowerCase();
-                    const wordCount = match.split(/\s+/).length;
-                    return wordCount >= 2 && wordCount <= 4 &&
-                           !lower.match(/debit|credit|bank|account|transfer|amount|balance|paid|first|second|third|details|complete|occurred|hello|dear/);
-                });
-                
-                if (filtered.length > 0) {
-                    // Return the longest match (likely the full name)
-                    return filtered.sort((a, b) => b.length - a.length)[0];
-                }
-            }
-            
-            // Method 3: Look for all-caps names (some banks use all caps)
-            const allCapsMatches = text.match(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){1,3})\b/g);
-            if (allCapsMatches) {
-                const filtered = allCapsMatches.filter(match => {
-                    const wordCount = match.split(/\s+/).length;
-                    return wordCount >= 2 && wordCount <= 4 &&
-                           !match.match(/DEBIT|CREDIT|BANK|ACCOUNT|TRANSFER|AMOUNT|BALANCE|PAID|FIRST|SECOND|THIRD|DETAILS|COMPLETE|OCCURRED/);
-                });
-                
-                if (filtered.length > 0) {
-                    return filtered.sort((a, b) => b.length - a.length)[0];
-                }
-            }
-            
-            return null;
         }
 
         // CLEAN TEXT FUNCTION - Remove encoding artifacts and normalize text
         function cleanText(text) {
             return text
                 // Remove common encoding artifacts
-                .replace(/Ã¢Â‚Â¦/g, '')
-                .replace(/â‚¦/g, 'NGN')
-                .replace(/[^\x20-\x7E\n\r]/g, ' ')
-                .replace(/\s+/g, ' ')
+                .replace(/â¦/g, '') // Remove the specific gibberish you mentioned
+                .replace(/[^\x00-\x7F]/g, ' ') // Remove non-ASCII characters
+                .replace(/\s+/g, ' ') // Normalize whitespace
                 .trim();
-        }
-
-        // EXTRACT POTENTIAL NAME - Dedicated function for name extraction
-        function extractPotentialName(text) {
-            return extractBeneficiaryName(text); // Use the improved function
         }
 
         function categorizeTransaction(text) {
@@ -1186,14 +1154,53 @@
             
             // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
-                if (checkSupplierMatch(text, supplier)) {
+                // Check for exact supplier name match
+                if (text.includes(supplier.toLowerCase())) {
                     return 'Supplier Payments';
+                }
+                
+                // Check for partial matches (e.g., "osbud pharmacy" in "OSBUD PHARMACY AND STORES LIMITED")
+                const supplierWords = supplier.toLowerCase().split(' ');
+                if (supplierWords.length > 1) {
+                    // Check if at least 2 words from supplier name appear in the text
+                    let matchCount = 0;
+                    for (const word of supplierWords) {
+                        if (word.length > 3 && text.includes(word)) {
+                            matchCount++;
+                        }
+                    }
+                    if (matchCount >= 2) {
+                        return 'Supplier Payments';
+                    }
+                }
+                
+                // Also check for single word supplier matches if the word is distinctive
+                const distinctiveSupplierWords = supplierWords.filter(word => 
+                    word.length > 5 && 
+                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
+                );
+                
+                for (const word of distinctiveSupplierWords) {
+                    if (text.includes(word)) {
+                        return 'Supplier Payments';
+                    }
                 }
             }
             
-            // Check Internal Transfers (second priority)
+            // Check Internal Transfers (second priority) - ENHANCED FOR VPAY FORMAT
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                if (checkKeywordMatch(text, keyword)) {
+                // Split compound names for better matching
+                const nameParts = keyword.toLowerCase().split(' ');
+                let matchCount = 0;
+                
+                for (const part of nameParts) {
+                    if (part.length > 3 && text.includes(part)) {
+                        matchCount++;
+                    }
+                }
+                
+                // Require at least 2 matching parts for compound names, or exact match for single words
+                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
                     return 'Internal Transfers';
                 }
             }
@@ -1205,12 +1212,13 @@
                 }
             }
             
-            // Check other categories
+            // Check other categories - USE SMART MATCHING TO AVOID FALSE POSITIVES
             for (const [category, keywords] of Object.entries(CATEGORIES)) {
                 if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
                     continue;
                 }
                 for (const keyword of keywords) {
+                    // Use context-aware matching to avoid false positives
                     if (isValidCategoryMatch(text, keyword.toLowerCase(), category)) {
                         return category;
                     }
@@ -1220,75 +1228,31 @@
             return 'Other';
         }
 
-        // Unified supplier matching logic
-        function checkSupplierMatch(text, supplier) {
-            // Check for exact supplier name match
-            if (text.includes(supplier.toLowerCase())) {
-                return true;
-            }
-            
-            // Check for partial matches
-            const supplierWords = supplier.toLowerCase().split(' ');
-            if (supplierWords.length > 1) {
-                let matchCount = 0;
-                for (const word of supplierWords) {
-                    if (word.length > 3 && text.includes(word)) {
-                        matchCount++;
-                    }
-                }
-                if (matchCount >= 2) {
-                    return true;
-                }
-            }
-            
-            // Check for distinctive single word matches
-            const distinctiveSupplierWords = supplierWords.filter(word => 
-                word.length > 5 && 
-                !['limited', 'company', 'stores', 'enterprise'].includes(word)
-            );
-            
-            for (const word of distinctiveSupplierWords) {
-                if (text.includes(word)) {
-                    return true;
-                }
-            }
-            
-            return false;
-        }
-
-        // Unified keyword matching logic
-        function checkKeywordMatch(text, keyword) {
-            const nameParts = keyword.toLowerCase().split(' ');
-            let matchCount = 0;
-            
-            for (const part of nameParts) {
-                if (part.length > 3 && text.includes(part)) {
-                    matchCount++;
-                }
-            }
-            
-            return nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase());
-        }
-
         // SMART MATCHING FUNCTION - Avoid false positives
         function isValidCategoryMatch(text, keyword, category) {
             if (!text.includes(keyword)) return false;
             
+            // SPECIAL CASES FOR COMMON FALSE POSITIVES
             if (category === 'Utilities') {
+                // Don't match "mtn" if it's part of other words or in transfer contexts
                 if (keyword === 'mtn') {
+                    // Avoid matching in transfer contexts
                     if (text.includes('transfer to') || text.includes('beneficiary')) {
                         return false;
                     }
+                    // Avoid matching if it's part of other words (but allow "mtn" as standalone)
                     const mtnRegex = /\bmtn\b/i;
                     return mtnRegex.test(text);
                 }
                 
+                // Similar checks for other utility providers
                 if (keyword === 'glo') {
                     const gloRegex = /\bglo\b/i;
-                    return gloRegex.test(text) && !text.includes('globus');
+                    return gloRegex.test(text) && !text.includes('globus'); // Don't match if globus is present
                 }
             }
             
+            // For other categories, use basic matching but with word boundaries for short keywords
             if (keyword.length <= 4) {
                 const regex = new RegExp(`\\b${keyword}\\b`, 'i');
                 return regex.test(text);
@@ -1298,22 +1262,79 @@
         }
 
         function getCategoryKeyword(text, category) {
-            const originalText = text;
             text = text.toLowerCase();
             
             // Check Supplier Payments first (highest priority)
             for (const supplier of suppliers) {
-                if (checkSupplierMatch(text, supplier)) {
+                if (text.includes(supplier.toLowerCase())) {
                     return supplier;
+                }
+                
+                // Check for partial matches
+                const supplierWords = supplier.toLowerCase().split(' ');
+                if (supplierWords.length > 1) {
+                    let matchCount = 0;
+                    let matchedWords = [];
+                    for (const word of supplierWords) {
+                        if (word.length > 3 && text.includes(word)) {
+                            matchCount++;
+                            matchedWords.push(word);
+                        }
+                    }
+                    if (matchCount >= 2) {
+                        return matchedWords.join(' ');
+                    }
+                }
+                
+                // Check for distinctive single word matches
+                const distinctiveSupplierWords = supplierWords.filter(word => 
+                    word.length > 5 && 
+                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
+                );
+                
+                for (const word of distinctiveSupplierWords) {
+                    if (text.includes(word)) {
+                        return word;
+                    }
                 }
             }
             
-            // Check Internal Transfers (second priority)
+            // Check Internal Transfers (second priority) - ENHANCED to catch beneficiary names
             for (const keyword of CATEGORIES['Internal Transfers']) {
-                if (checkKeywordMatch(text, keyword)) {
-                    const extractedName = extractPotentialName(originalText);
-                    if (extractedName) {
-                        return `${keyword} - ${extractedName}`;
+                // Enhanced matching for VPay format "CHIPPER CASH / ILOANUGO CHIJIOKE"
+                const nameParts = keyword.toLowerCase().split(' ');
+                let matchCount = 0;
+                let matchedParts = [];
+                
+                for (const part of nameParts) {
+                    if (part.length > 3 && text.includes(part)) {
+                        matchCount++;
+                        matchedParts.push(part);
+                    }
+                }
+                
+                if (nameParts.length > 1 ? matchCount >= 2 : text.includes(keyword.toLowerCase())) {
+                    // Try to extract the full beneficiary name
+                    const beneficiaryPatterns = [
+                        /Beneficiary Account Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /Beneficiary Name\s+([A-Za-z\s\/]+?(?=\s+Beneficiary|$))/i,
+                        /To:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Transfer to\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /Recipient:\s+([A-Za-z\s\/]+?(?=\s+(?:Account|Bank|$)))/i,
+                        /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                        /CHIPPER CASH\s*\/\s*([A-Za-z\s]+)/i // Specific for Chipper Cash format
+                    ];
+                    
+                    for (const pattern of beneficiaryPatterns) {
+                        const match = text.match(pattern);
+                        if (match && match[1]) {
+                            const beneficiary = match[1].trim();
+                            // Clean up the beneficiary name
+                            const cleanBeneficiary = beneficiary.replace(/\s+/g, ' ').replace(/\/.*/, '').trim();
+                            if (cleanBeneficiary.length > 5) {
+                                return `${keyword} - ${cleanBeneficiary}`;
+                            }
+                        }
                     }
                     return keyword;
                 }
@@ -1326,7 +1347,7 @@
                 }
             }
             
-            // Check other categories
+            // Check other categories - USE SMART MATCHING
             for (const [cat, keywords] of Object.entries(CATEGORIES)) {
                 if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges') {
                     continue;
@@ -1338,18 +1359,41 @@
                 }
             }
             
-            // ENHANCED: For "Other" category, use dedicated name extraction
+            // ENHANCED: For "Other" category, try to extract beneficiary name or key details
             if (category === 'Other') {
-                const extractedName = extractPotentialName(originalText);
-                if (extractedName) {
-                    return `Potential: ${extractedName}`;
+                // Try to extract beneficiary name from common patterns - ENHANCED FOR MONIEPOINT
+                const beneficiaryPatterns = [
+                    /TRANSFER TO\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /Transfer to\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /To:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Date|Time|Narration|$)))/i,
+                    /Beneficiary:\s+([A-Za-z\s]{3,50}(?=\s+(?:Account|Bank|$)))/i,
+                    /Beneficiary Account Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                    /Beneficiary Name\s+([A-Za-z\s]+?(?=\s+Beneficiary|$))/i,
+                    /(?:to|for|beneficiary|recipient)[:\s]+([A-Za-z\s]{3,50}(?:company|limited|enterprise|store|pharmacy|enterprises|ltd))/i,
+                    /(?:transfer|sent|payment)\s+to\s+([A-Za-z\s]{3,50})/i,
+                    /(?:narration|description|details)[:\s]+([A-Za-z0-9\s.,]{10,100})/i,
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+\s+[A-Z][a-z]+)/, // Three word names
+                    /([A-Z][a-z]+\s+[A-Z][a-z]+)/ // Two word names
+                ];
+                
+                for (const pattern of beneficiaryPatterns) {
+                    const match = text.match(pattern);
+                    if (match && match[1]) {
+                        const potentialName = cleanText(match[1].trim());
+                        // Validate it's a reasonable name (not too short, not common words)
+                        if (potentialName.length > 5 && 
+                            !potentialName.match(/(?:amount|debit|credit|balance|transaction|bank|account|date|time|narration)/i) &&
+                            potentialName.split(' ').length >= 2) { // At least 2 words for a name
+                            return `Potential: ${potentialName}`;
+                        }
+                    }
                 }
                 
-                // If no name found, return key terms as fallback
-                const words = cleanText(originalText).split(/\s+/)
+                // If no beneficiary found, return key part of description (CLEANED)
+                const words = cleanText(text).split(/\s+/)
                     .filter(word => 
                         word.length > 4 && 
-                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|ngn)/i)
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|â¦)/i)
                     )
                     .slice(0, 3);
                     
@@ -1358,17 +1402,15 @@
                 }
             }
             
-            return 'Unknown';
+            return 'No specific keyword matched';
         }
 
         function setDateFilter(filter) {
             currentFilter = filter;
             document.querySelectorAll('.date-filter-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if (btn.getAttribute('data-filter') === filter) {
-                    btn.classList.add('active');
-                }
             });
+            event.target.classList.add('active');
             applyDateFilter();
         }
 
@@ -1493,7 +1535,7 @@
                 .map(([cat, amount]) => {
                     const breakdown = categoryBreakdowns[cat] || {};
                     const breakdownItems = Object.entries(breakdown)
-                        .sort((a, b) => a[0].localeCompare(b[0]))
+                        .sort((a, b) => a[0].localeCompare(b[0])) // Sort alphabetically
                         .map(([keyword, data]) => {
                             const uniqueDates = [...new Set(data.dates)].sort((a, b) => new Date(a) - new Date(b));
                             const dateText = uniqueDates.length <= 3 ? 
@@ -1916,42 +1958,7 @@
         }
 
         // Initialize suppliers on page load
-        window.addEventListener('load', () => {
-            loadSuppliers();
-            
-            // Add event listeners for buttons
-            document.getElementById('authorizeBtn').addEventListener('click', handleAuthClick);
-            document.getElementById('signoutBtn').addEventListener('click', handleSignoutClick);
-            document.getElementById('refreshBtn').addEventListener('click', refreshData);
-            document.getElementById('addSupplierBtn').addEventListener('click', addSupplier);
-            document.getElementById('applyCustomDate').addEventListener('click', applyCustomDateRange);
-            
-            // Date filter buttons
-            document.querySelectorAll('.date-filter-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const filter = this.getAttribute('data-filter');
-                    setDateFilter(filter);
-                });
-            });
-            
-            // Search and filter inputs
-            document.getElementById('searchInput').addEventListener('keyup', filterTransactions);
-            document.getElementById('categoryFilter').addEventListener('change', filterTransactions);
-            document.getElementById('amountFilter').addEventListener('change', filterTransactions);
-            
-            // Tab buttons
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabName = this.getAttribute('data-tab');
-                    switchTab(tabName);
-                });
-            });
-            
-            // Export buttons
-            document.getElementById('exportCSVBtn').addEventListener('click', exportToCSV);
-            document.getElementById('exportJSONBtn').addEventListener('click', exportToJSON);
-            document.getElementById('printReportBtn').addEventListener('click', printReport);
-        });
+        window.addEventListener('load', loadSuppliers);
     </script>
 </body>
 </html>
