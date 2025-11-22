@@ -935,16 +935,9 @@
                 }
 
                 const transactions = [];
-                const processedIds = new Set(); // Track processed message IDs to avoid duplicates
-                
                 for (let i = 0; i < data.messages.length; i += 20) {
                     const batch = data.messages.slice(i, i + 20);
                     const batchPromises = batch.map(async (message) => {
-                        // Skip if already processed
-                        if (processedIds.has(message.id)) {
-                            return null;
-                        }
-                        
                         try {
                             const msgResponse = await fetch(
                                 `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
@@ -956,11 +949,6 @@
                             );
                             const msgData = await msgResponse.json();
                             const transaction = parseEmailForTransaction(msgData);
-                            
-                            if (transaction) {
-                                processedIds.add(message.id);
-                            }
-                            
                             return transaction;
                         } catch (error) {
                             console.error('Error processing message:', error);
@@ -977,22 +965,7 @@
                     }
                 }
 
-                // Remove duplicates based on date + amount combination (same transaction reported twice)
-                const uniqueTransactions = [];
-                const seenTransactions = new Set();
-                
-                for (const transaction of transactions) {
-                    const key = `${transaction.date.toISOString()}-${transaction.amount}`;
-                    if (!seenTransactions.has(key)) {
-                        seenTransactions.add(key);
-                        uniqueTransactions.push(transaction);
-                    }
-                }
-
-                allTransactions = uniqueTransactions.sort((a, b) => b.date - a.date);
-                
-                console.log(`Total transactions found: ${allTransactions.length}`);
-                
+                allTransactions = transactions.sort((a, b) => b.date - a.date);
                 applyDateFilter();
                 showLoading(false);
 
@@ -1121,16 +1094,6 @@
             const category = categorizeTransaction(fullText);
             const categoryKeyword = getCategoryKeyword(fullText, category);
 
-            // Enhanced debug logging
-            console.log('─────────────────────────────────');
-            console.log('Transaction Processed:');
-            console.log('Subject:', subject.substring(0, 100));
-            console.log('Amount:', amount);
-            console.log('Date:', new Date(date).toLocaleDateString());
-            console.log('Category:', category);
-            console.log('Keyword:', categoryKeyword);
-            console.log('─────────────────────────────────');
-
             return {
                 date: new Date(date),
                 description: subject.substring(0, 100),
@@ -1184,7 +1147,28 @@
                 }
             }
             
-            // PRIORITY 2: Check Internal Transfers EARLY (before other categories that might have generic keywords)
+            // PRIORITY 2: Utilities
+            for (const keyword of CATEGORIES['Utilities']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Utilities')) {
+                    return 'Utilities';
+                }
+            }
+            
+            // PRIORITY 3: Food & Dining
+            for (const keyword of CATEGORIES['Food & Dining']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Food & Dining')) {
+                    return 'Food & Dining';
+                }
+            }
+            
+            // PRIORITY 4: Bank Charges
+            for (const keyword of CATEGORIES['Bank Charges']) {
+                if (lowerText.includes(keyword.toLowerCase())) {
+                    return 'Bank Charges';
+                }
+            }
+            
+            // PRIORITY 5: Internal Transfers
             for (const keyword of CATEGORIES['Internal Transfers']) {
                 const nameParts = keyword.toLowerCase().split(' ');
                 let matchCount = 0;
@@ -1197,27 +1181,6 @@
                 
                 if (nameParts.length > 1 ? matchCount >= 2 : lowerText.includes(keyword.toLowerCase())) {
                     return 'Internal Transfers';
-                }
-            }
-            
-            // PRIORITY 3: Utilities
-            for (const keyword of CATEGORIES['Utilities']) {
-                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Utilities')) {
-                    return 'Utilities';
-                }
-            }
-            
-            // PRIORITY 4: Food & Dining
-            for (const keyword of CATEGORIES['Food & Dining']) {
-                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Food & Dining')) {
-                    return 'Food & Dining';
-                }
-            }
-            
-            // PRIORITY 5: Bank Charges
-            for (const keyword of CATEGORIES['Bank Charges']) {
-                if (lowerText.includes(keyword.toLowerCase())) {
-                    return 'Bank Charges';
                 }
             }
             
@@ -1299,7 +1262,28 @@
                 }
             }
             
-            // PRIORITY 2: Check Internal Transfers EARLY
+            // PRIORITY 2: Check Utilities
+            for (const keyword of CATEGORIES['Utilities']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Utilities')) {
+                    return keyword;
+                }
+            }
+            
+            // PRIORITY 3: Check Food & Dining
+            for (const keyword of CATEGORIES['Food & Dining']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Food & Dining')) {
+                    return keyword;
+                }
+            }
+            
+            // PRIORITY 4: Check Bank Charges
+            for (const keyword of CATEGORIES['Bank Charges']) {
+                if (lowerText.includes(keyword.toLowerCase())) {
+                    return keyword;
+                }
+            }
+            
+            // PRIORITY 5: Check Internal Transfers
             for (const keyword of CATEGORIES['Internal Transfers']) {
                 const nameParts = keyword.toLowerCase().split(' ');
                 let matchCount = 0;
@@ -1317,27 +1301,6 @@
                     if (beneficiaryName) {
                         return `${keyword} - ${beneficiaryName}`;
                     }
-                    return keyword;
-                }
-            }
-            
-            // PRIORITY 3: Check Utilities
-            for (const keyword of CATEGORIES['Utilities']) {
-                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Utilities')) {
-                    return keyword;
-                }
-            }
-            
-            // PRIORITY 4: Check Food & Dining
-            for (const keyword of CATEGORIES['Food & Dining']) {
-                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Food & Dining')) {
-                    return keyword;
-                }
-            }
-            
-            // PRIORITY 5: Check Bank Charges
-            for (const keyword of CATEGORIES['Bank Charges']) {
-                if (lowerText.includes(keyword.toLowerCase())) {
                     return keyword;
                 }
             }
@@ -1383,10 +1346,11 @@
                 /Transfer to[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:Account|Date|Time|Narration|OPay|First Bank|\d|$))/i,
                 /To:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
                 /Recipient:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
+                /CHIPPER CASH\s*\/\s*([A-Z][A-Z\s]+)/i,
+                /CHOWDECK\s*\/\s*([A-Z][A-Z\s]+)/i,
                 /Narration:[\s\t]*TRANSFER TO[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:OPay|[\d\*]))/i,
-                /MOBILE TRF TO PAT\/([A-Z][A-Z\s\/]+)/i,
-                /(?:PAT|MOBILE TRF)[\s\t]+TO[\s\t]+([A-Z][A-Z\s\/]+)/i,
-                /([A-Z][A-Z\s]{3,30})\s*\/\s*([A-Z][A-Z\s]{5,50})/i
+                /MOBILE TRF TO PAT\/CHOWDECK\/([A-Z][A-Z\s]+)/i,
+                /(?:PAT|MOBILE TRF)\s*\/\s*([A-Z\/\s]{10,50})/i
             ];
             
             for (const pattern of beneficiaryPatterns) {
