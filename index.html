@@ -1094,6 +1094,14 @@
             const category = categorizeTransaction(fullText);
             const categoryKeyword = getCategoryKeyword(fullText, category);
 
+            // Debug logging - you can check browser console
+            if (fullText.toLowerCase().includes('chowdeck')) {
+                console.log('CHOWDECK Transaction Found:');
+                console.log('Full Text:', fullText);
+                console.log('Category:', category);
+                console.log('Keyword:', categoryKeyword);
+            }
+
             return {
                 date: new Date(date),
                 description: subject.substring(0, 100),
@@ -1203,6 +1211,7 @@
             if (!text.includes(keyword)) return false;
             
             if (category === 'Utilities') {
+                // More strict matching for utilities to avoid false positives
                 if (keyword === 'mtn') {
                     if (text.includes('transfer to') || text.includes('beneficiary')) {
                         return false;
@@ -1214,6 +1223,12 @@
                 if (keyword === 'glo') {
                     const gloRegex = /\bglo\b/i;
                     return gloRegex.test(text) && !text.includes('globus');
+                }
+                
+                if (keyword === 'internet') {
+                    // Only match if it's clearly about internet service, not just the word appearing randomly
+                    const internetRegex = /\binternet\s+(service|subscription|data|bill|payment|recharge)\b/i;
+                    return internetRegex.test(text);
                 }
             }
             
