@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Debit Alert Tracker</title>
+    <title>Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -1324,10 +1324,7 @@
                 /To:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
                 /Recipient:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
                 /CHIPPER CASH\s*\/\s*([A-Z][A-Z\s]+)/i,
-                /CHOWDECK\s*\/\s*([A-Z][A-Z\s]+)/i,
-                /Narration:[\s\t]*TRANSFER TO[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:OPay|[\d\*]))/i,
-                /MOBILE TRF TO PAT\/CHOWDECK\/([A-Z][A-Z\s]+)/i,
-                /(?:PAT|MOBILE TRF)\s*\/\s*([A-Z\/\s]{10,50})/i
+                /Narration:[\s\t]*TRANSFER TO[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:OPay|[\d\*]))/i
             ];
             
             for (const pattern of beneficiaryPatterns) {
