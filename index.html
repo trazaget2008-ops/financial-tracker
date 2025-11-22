@@ -404,7 +404,6 @@
             color: #666;
         }
 
-        /* Mobile Responsive Styles */
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -604,7 +603,6 @@
                     </div>
                 </div>
 
-                <!-- Search and Filter Section -->
                 <div class="search-filter">
                     <input type="text" id="searchInput" placeholder="Search transactions by description, amount, or category..." onkeyup="filterTransactions()">
                     <select id="categoryFilter" onchange="filterTransactions()">
@@ -620,7 +618,6 @@
                     </select>
                 </div>
 
-                <!-- Quick Stats -->
                 <div class="stats-highlight">
                     <div class="stat-item">
                         <div class="stat-value" id="dailyAverage">₦0.00</div>
@@ -770,7 +767,6 @@
             'Other': '#7f8c8d'
         };
 
-        // Load suppliers from localStorage
         function loadSuppliers() {
             const saved = localStorage.getItem('debitTracker_suppliers');
             if (saved) {
@@ -779,12 +775,10 @@
             displaySuppliers();
         }
 
-        // Save suppliers to localStorage
         function saveSuppliers() {
             localStorage.setItem('debitTracker_suppliers', JSON.stringify(suppliers));
         }
 
-        // Display suppliers
         function displaySuppliers() {
             const container = document.getElementById('supplierList');
             if (suppliers.length === 0) {
@@ -800,7 +794,6 @@
             `).join('');
         }
 
-        // Add supplier
         function addSupplier() {
             const input = document.getElementById('newSupplierInput');
             const supplierName = input.value.trim();
@@ -821,7 +814,6 @@
             input.value = '';
             hideError();
             
-            // Re-categorize transactions if they exist
             if (allTransactions.length > 0) {
                 allTransactions = allTransactions.map(t => ({
                     ...t,
@@ -832,14 +824,12 @@
             }
         }
 
-        // Remove supplier
         function removeSupplier(index) {
             if (confirm(`Remove "${suppliers[index]}" from suppliers list?`)) {
                 suppliers.splice(index, 1);
                 saveSuppliers();
                 displaySuppliers();
                 
-                // Re-categorize transactions if they exist
                 if (allTransactions.length > 0) {
                     allTransactions = allTransactions.map(t => ({
                         ...t,
@@ -901,21 +891,18 @@
             filteredTransactions = [];
         }
 
-        // Enhanced refresh function
         function refreshData() {
             if (!accessToken) {
                 showError('Please connect to Gmail first');
                 return;
             }
             
-            // Clear previous data and show loading
             allTransactions = [];
             filteredTransactions = [];
             document.getElementById('resultsContainer').classList.add('hidden');
             showLoading(true);
             hideError();
             
-            // Force refresh by adding timestamp to avoid cache
             fetchDebitAlerts();
         }
 
@@ -1129,6 +1116,7 @@
         function categorizeTransaction(text) {
             const lowerText = text.toLowerCase();
             
+            // PRIORITY 1: Supplier Payments
             for (const supplier of suppliers) {
                 if (lowerText.includes(supplier.toLowerCase())) {
                     return 'Supplier Payments';
@@ -1159,6 +1147,28 @@
                 }
             }
             
+            // PRIORITY 2: Utilities
+            for (const keyword of CATEGORIES['Utilities']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Utilities')) {
+                    return 'Utilities';
+                }
+            }
+            
+            // PRIORITY 3: Food & Dining
+            for (const keyword of CATEGORIES['Food & Dining']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Food & Dining')) {
+                    return 'Food & Dining';
+                }
+            }
+            
+            // PRIORITY 4: Bank Charges
+            for (const keyword of CATEGORIES['Bank Charges']) {
+                if (lowerText.includes(keyword.toLowerCase())) {
+                    return 'Bank Charges';
+                }
+            }
+            
+            // PRIORITY 5: Internal Transfers
             for (const keyword of CATEGORIES['Internal Transfers']) {
                 const nameParts = keyword.toLowerCase().split(' ');
                 let matchCount = 0;
@@ -1174,14 +1184,9 @@
                 }
             }
             
-            for (const keyword of CATEGORIES['Bank Charges']) {
-                if (lowerText.includes(keyword.toLowerCase())) {
-                    return 'Bank Charges';
-                }
-            }
-            
+            // PRIORITY 6: Other spending categories
             for (const [category, keywords] of Object.entries(CATEGORIES)) {
-                if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges') {
+                if (category === 'Internal Transfers' || category === 'Supplier Payments' || category === 'Bank Charges' || category === 'Utilities' || category === 'Food & Dining') {
                     continue;
                 }
                 for (const keyword of keywords) {
@@ -1224,6 +1229,7 @@
             const originalText = text;
             const lowerText = text.toLowerCase();
             
+            // PRIORITY 1: Check Supplier Payments
             for (const supplier of suppliers) {
                 if (lowerText.includes(supplier.toLowerCase())) {
                     return supplier;
@@ -1256,6 +1262,28 @@
                 }
             }
             
+            // PRIORITY 2: Check Utilities
+            for (const keyword of CATEGORIES['Utilities']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Utilities')) {
+                    return keyword;
+                }
+            }
+            
+            // PRIORITY 3: Check Food & Dining
+            for (const keyword of CATEGORIES['Food & Dining']) {
+                if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), 'Food & Dining')) {
+                    return keyword;
+                }
+            }
+            
+            // PRIORITY 4: Check Bank Charges
+            for (const keyword of CATEGORIES['Bank Charges']) {
+                if (lowerText.includes(keyword.toLowerCase())) {
+                    return keyword;
+                }
+            }
+            
+            // PRIORITY 5: Check Internal Transfers
             for (const keyword of CATEGORIES['Internal Transfers']) {
                 const nameParts = keyword.toLowerCase().split(' ');
                 let matchCount = 0;
@@ -1277,14 +1305,9 @@
                 }
             }
             
-            for (const keyword of CATEGORIES['Bank Charges']) {
-                if (lowerText.includes(keyword.toLowerCase())) {
-                    return keyword;
-                }
-            }
-            
+            // PRIORITY 6: Check other categories
             for (const [cat, keywords] of Object.entries(CATEGORIES)) {
-                if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges') {
+                if (cat === 'Internal Transfers' || cat === 'Supplier Payments' || cat === 'Bank Charges' || cat === 'Utilities' || cat === 'Food & Dining') {
                     continue;
                 }
                 for (const keyword of keywords) {
@@ -1324,7 +1347,10 @@
                 /To:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
                 /Recipient:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
                 /CHIPPER CASH\s*\/\s*([A-Z][A-Z\s]+)/i,
-                /Narration:[\s\t]*TRANSFER TO[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:OPay|[\d\*]))/i
+                /CHOWDECK\s*\/\s*([A-Z][A-Z\s]+)/i,
+                /Narration:[\s\t]*TRANSFER TO[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:OPay|[\d\*]))/i,
+                /MOBILE TRF TO PAT\/CHOWDECK\/([A-Z][A-Z\s]+)/i,
+                /(?:PAT|MOBILE TRF)\s*\/\s*([A-Z\/\s]{10,50})/i
             ];
             
             for (const pattern of beneficiaryPatterns) {
@@ -1332,7 +1358,12 @@
                 if (match && match[1]) {
                     let beneficiary = match[1].trim();
                     beneficiary = beneficiary.replace(/\s+/g, ' ');
-                    beneficiary = beneficiary.replace(/\/.*/, '').trim();
+                    
+                    if (beneficiary.includes('CHOWDECK/')) {
+                        beneficiary = beneficiary.replace(/CHOWDECK\//, '').trim();
+                    }
+                    
+                    beneficiary = beneficiary.replace(/\/$/, '').trim();
                     
                     const excludePatterns = /(?:amount|debit|credit|balance|transaction|bank account|date|time|narration|transfer to|beneficiary name)/i;
                     if (!excludePatterns.test(beneficiary)) {
