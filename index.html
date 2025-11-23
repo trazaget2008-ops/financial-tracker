@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>En Debit Alert Tracker</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -747,7 +747,7 @@
             'Entertainment': ['cinema', 'movie', 'netflix', 'spotify', 'game', 'xbox', 'playstation'],
             'Shopping': ['jumia', 'konga', 'amazon', 'mall', 'clothing', 'fashion'],
             'Healthcare': ['hospital', 'pharmacy', 'clinic', 'doctor', 'medical'],
-            'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical'],
+            'Internal Transfers': ['iloanugo chijioke francis', 'enavec pharmacy', 'enavec pharmaceutical', 'enavec'],
             'Supplier Payments': [],
             'Bank Charges': ['bank charge', 'service charge', 'maintenance fee', 'commission', 'vat charge', 'stamp duty', 'sms charge', 'alert charge']
         };
@@ -767,7 +767,6 @@
             'Other': '#7f8c8d'
         };
 
-        // Consolidated utility functions
         function loadSuppliers() {
             const saved = localStorage.getItem('debitTracker_suppliers');
             if (saved) {
@@ -1092,74 +1091,68 @@
         function categorizeTransaction(text) {
             const lowerText = text.toLowerCase();
             
-            // Consolidated category checking logic
-            const categoryPriority = [
-                { name: 'Supplier Payments', check: () => checkSupplierMatch(lowerText) },
-                { name: 'Internal Transfers', check: () => checkCategoryMatch(lowerText, CATEGORIES['Internal Transfers']) },
-                { name: 'Utilities', check: () => checkCategoryMatch(lowerText, CATEGORIES['Utilities'], 'Utilities') },
-                { name: 'Food & Dining', check: () => checkCategoryMatch(lowerText, CATEGORIES['Food & Dining'], 'Food & Dining') },
-                { name: 'Bank Charges', check: () => checkCategoryMatch(lowerText, CATEGORIES['Bank Charges']) }
-            ];
-
-            for (const category of categoryPriority) {
-                if (category.check()) {
-                    return category.name;
-                }
-            }
-
-            // Check remaining categories
-            for (const [category, keywords] of Object.entries(CATEGORIES)) {
-                if (['Internal Transfers', 'Supplier Payments', 'Bank Charges', 'Utilities', 'Food & Dining'].includes(category)) {
-                    continue;
-                }
-                if (checkCategoryMatch(lowerText, keywords, category)) {
-                    return category;
+            // PRIORITY 1: Exact Supplier Matches
+            for (const supplier of suppliers) {
+                if (lowerText.includes(supplier.toLowerCase())) {
+                    return 'Supplier Payments';
                 }
             }
             
-            return 'Other';
-        }
-
-        function checkSupplierMatch(text) {
-            for (const supplier of suppliers) {
-                if (text.includes(supplier.toLowerCase())) {
-                    return true;
+            // PRIORITY 2: Internal Transfers with proper name matching
+            for (const keyword of CATEGORIES['Internal Transfers']) {
+                const nameParts = keyword.toLowerCase().split(' ');
+                let matchCount = 0;
+                
+                for (const part of nameParts) {
+                    if (part.length > 3 && lowerText.includes(part)) {
+                        matchCount++;
+                    }
                 }
                 
+                // Require at least 2 matching parts for multi-word names, or exact match for single words
+                if (nameParts.length > 1 ? matchCount >= 2 : lowerText.includes(keyword.toLowerCase())) {
+                    return 'Internal Transfers';
+                }
+            }
+            
+            // PRIORITY 3: Flexible Supplier Matching (partial matches)
+            for (const supplier of suppliers) {
                 const supplierWords = supplier.toLowerCase().split(' ');
                 if (supplierWords.length > 1) {
                     let matchCount = 0;
                     for (const word of supplierWords) {
-                        if (word.length > 3 && text.includes(word)) {
+                        if (word.length > 3 && lowerText.includes(word)) {
                             matchCount++;
                         }
                     }
+                    // Only match if we have at least 2 distinctive words
                     if (matchCount >= 2) {
-                        return true;
-                    }
-                }
-                
-                const distinctiveSupplierWords = supplierWords.filter(word => 
-                    word.length > 5 && 
-                    !['limited', 'company', 'stores', 'enterprise'].includes(word)
-                );
-                
-                for (const word of distinctiveSupplierWords) {
-                    if (text.includes(word)) {
-                        return true;
+                        return 'Supplier Payments';
                     }
                 }
             }
-            return false;
-        }
-
-        function checkCategoryMatch(text, keywords, category = null) {
-            for (const keyword of keywords) {
-                if (isValidCategoryMatch(text, keyword.toLowerCase(), category)) {
-                    return true;
+            
+            // PRIORITY 4: Other categories (Utilities, Food & Dining, etc.)
+            const categoryPriority = [
+                'Utilities',
+                'Food & Dining', 
+                'Bank Charges',
+                'Transportation',
+                'Groceries',
+                'Entertainment',
+                'Shopping',
+                'Healthcare'
+            ];
+            
+            for (const category of categoryPriority) {
+                for (const keyword of CATEGORIES[category]) {
+                    if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), category)) {
+                        return category;
+                    }
                 }
             }
-            return false;
+            
+            return 'Other';
         }
 
         function isValidCategoryMatch(text, keyword, category) {
@@ -1192,13 +1185,40 @@
             const originalText = text;
             const lowerText = text.toLowerCase();
             
-            // Consolidated keyword extraction logic
-            if (category === 'Supplier Payments') {
-                for (const supplier of suppliers) {
-                    if (lowerText.includes(supplier.toLowerCase())) {
-                        return supplier;
+            // PRIORITY 1: Exact Supplier Matches
+            for (const supplier of suppliers) {
+                if (lowerText.includes(supplier.toLowerCase())) {
+                    return supplier;
+                }
+            }
+            
+            // PRIORITY 2: Internal Transfers
+            if (category === 'Internal Transfers') {
+                for (const keyword of CATEGORIES['Internal Transfers']) {
+                    const nameParts = keyword.toLowerCase().split(' ');
+                    let matchCount = 0;
+                    let matchedParts = [];
+                    
+                    for (const part of nameParts) {
+                        if (part.length > 3 && lowerText.includes(part)) {
+                            matchCount++;
+                            matchedParts.push(part);
+                        }
                     }
                     
+                    if (nameParts.length > 1 ? matchCount >= 2 : lowerText.includes(keyword.toLowerCase())) {
+                        const beneficiaryName = extractBeneficiaryName(originalText);
+                        if (beneficiaryName) {
+                            return `${keyword} - ${beneficiaryName}`;
+                        }
+                        return keyword;
+                    }
+                }
+            }
+            
+            // PRIORITY 3: Supplier Payments (partial matches)
+            if (category === 'Supplier Payments') {
+                for (const supplier of suppliers) {
                     const supplierWords = supplier.toLowerCase().split(' ');
                     if (supplierWords.length > 1) {
                         let matchCount = 0;
@@ -1213,32 +1233,18 @@
                             return matchedWords.join(' ');
                         }
                     }
-                    
-                    const distinctiveSupplierWords = supplierWords.filter(word => 
-                        word.length > 5 && 
-                        !['limited', 'company', 'stores', 'enterprise'].includes(word)
-                    );
-                    
-                    for (const word of distinctiveSupplierWords) {
-                        if (lowerText.includes(word)) {
-                            return word;
-                        }
-                    }
                 }
             }
-
-            // Check specific categories
+            
+            // PRIORITY 4: Other categories
             const categoryKeywords = CATEGORIES[category] || [];
             for (const keyword of categoryKeywords) {
                 if (isValidCategoryMatch(lowerText, keyword.toLowerCase(), category)) {
-                    if (category === 'Internal Transfers') {
-                        const beneficiaryName = extractBeneficiaryName(originalText);
-                        return beneficiaryName ? `${keyword} - ${beneficiaryName}` : keyword;
-                    }
                     return keyword;
                 }
             }
             
+            // Fallback: Extract beneficiary name or key terms
             if (category === 'Other') {
                 const beneficiaryName = extractBeneficiaryName(originalText);
                 if (beneficiaryName) {
@@ -1248,7 +1254,7 @@
                 const words = cleanText(lowerText).split(/\s+/)
                     .filter(word => 
                         word.length > 4 && 
-                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from)/i)
+                        !word.match(/(?:debit|alert|transaction|amount|balance|account|date|time|narration|transfer|to|from|bank|charge)/i)
                     )
                     .slice(0, 3);
                     
