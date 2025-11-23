@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debit Alert Tracker</title>
+    <title>Enhanced Debit Alert Tracker</title>
     <style>
         * {
             margin: 0;
@@ -1129,7 +1129,7 @@
         function categorizeTransaction(text) {
             const lowerText = text.toLowerCase();
             
-            // PRIORITY 1: Supplier Payments
+            // PRIORITY 1: Supplier Payments (highest priority)
             for (const supplier of suppliers) {
                 if (lowerText.includes(supplier.toLowerCase())) {
                     return 'Supplier Payments';
@@ -1303,12 +1303,16 @@
 
         function extractBeneficiaryName(text) {
             const beneficiaryPatterns = [
+                // Access Bank pattern - extract beneficiary after "MOBILE TRF TO"
+                /MOBILE TRF TO\s+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:\/|Account|Date|Time|Narration|OPay|First Bank|GT Bank|Access|UBA|Zenith|\d|$))/i,
                 /Beneficiary Account Name[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Beneficiary|Account Number|Bank|Amount|\d|$))/i,
                 /Beneficiary Name[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Beneficiary|Account|Bank|Amount|\d|$))/i,
                 /TRANSFER TO[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Date|Time|Narration|OPay|First Bank|GT Bank|Access|UBA|Zenith|\d|$))/i,
                 /Transfer to[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:Account|Date|Time|Narration|OPay|First Bank|\d|$))/i,
                 /To:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
                 /Recipient:[\s\t]+([A-Z][A-Z\s\/]{5,50}?)(?=\s*(?:Account|Bank|Amount|\d|$))/i,
+                // Carbon pattern - extract beneficiary after "Transfer from"
+                /Transfer from\s+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:Account|Date|Time|Narration|\d|$))/i,
                 /CHIPPER CASH\s*\/\s*([A-Z][A-Z\s]+)/i,
                 /CHOWDECK\s*\/\s*([A-Z][A-Z\s]+)/i,
                 /Narration:[\s\t]*TRANSFER TO[\s\t]+([A-Z][A-Z\s]{5,50}?)(?=\s*(?:OPay|[\d\*]))/i,
@@ -1336,7 +1340,7 @@
                         if (words.length >= 2 && words.length <= 5) {
                             const hasValidWords = words.every(word => 
                                 word.length >= 2 && 
-                                /^[A-Z][A-Z]*$/i.test(word)
+                                /^[A-Z][A-Z\s]*$/i.test(word)
                             );
                             
                             if (hasValidWords) {
@@ -1901,4 +1905,3 @@
     </script>
 </body>
 </html>
-
